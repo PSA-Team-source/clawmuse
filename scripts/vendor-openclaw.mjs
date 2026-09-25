@@ -167,7 +167,11 @@ export async function vendorOpenclaw(target) {
 
   // COPYFILE_DISABLE: no AppleDouble `._*` files from macOS tar.
   const partial = `${out}.partial`
-  execFileSync('tar', [...spec.flag, partial, '-C', staging, 'node_modules', 'package.json', 'package-lock.json'], {
+  // On a Windows build host PATH's `tar` is often Git's GNU tar, which reads
+  // `D:\…` as a remote host ("Cannot connect to D: resolve failed" on GitHub's
+  // runner). The OS's own bsdtar takes drive paths, as the app itself uses.
+  const tar = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar'
+  execFileSync(tar, [...spec.flag, partial, '-C', staging, 'node_modules', 'package.json', 'package-lock.json'], {
     env: { ...process.env, COPYFILE_DISABLE: '1' },
     stdio: ['ignore', 'ignore', 'inherit'],
   })

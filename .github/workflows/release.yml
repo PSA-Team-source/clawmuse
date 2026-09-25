@@ -108,7 +108,10 @@ jobs:
 
       - name: Package
         run: |
-          args=(--mac --arm64 --x64 --publish never)
+          # The layered build/icon.icon needs actool, which crashes on the runner's
+          # Xcode (ibtoold dyld: MediaToolbox symbol missing). Build with the full
+          # build/icon.icns, exactly as the locally verified releases are.
+          args=(--mac --arm64 --x64 --publish never -c.mac.icon=build/icon.icns)
           # electron-builder.yml keeps notarize off so local builds need no network.
           if [ "$MAC_NOTARIZE" = true ]; then args+=(-c.mac.notarize=true); fi
           node scripts/pack.mjs "${args[@]}"
