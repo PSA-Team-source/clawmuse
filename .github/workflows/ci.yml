@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # postinstall runs `electron-builder install-app-deps` (nothing native to
+      # rebuild) and the macOS-only dev-name patch, which returns early on Linux.
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      # `npm run build` = typecheck + scripts/build-native.mjs + vendored npm +
+      # electron-vite build. build-native.mjs compiles the Swift key monitor and
+      # exits 0 without doing anything on any platform but macOS, so this is
+      # the full production bundle minus the Mac-only binary.
+      - name: Production build
+        run: npm run build
+
+      - name: No local credentials in the bundle
+        run: npm run check:secrets

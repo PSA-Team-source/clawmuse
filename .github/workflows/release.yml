@@ -1,0 +1,248 @@
+# Builds the installers and publishes a GitHub Release when a `v*` tag is pushed.
+#
+# Run it by hand (Actions → Release → Run workflow) to build everything without
+# publishing: the installers are kept as workflow artifacts, which is how to
+# test a signing setup before tagging.
+#
+# Signing is optional and per platform. The secret names are documented in
+# CONTRIBUTING.md#signing-secrets. Without them the builds are unsigned, and
+# scripts/after-sign.mjs ad-hoc signs the Mac app so it opens through
+# "Open Anyway" instead of being reported as damaged.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Check version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $version (expected v$version)."
+            exit 1
+          fi
+
+  mac:
+    name: macOS (arm64 + x64)
+    needs: version
+    # macos-15 carries Xcode 26, whose actool compiles the layered macOS 26
+    # icon (build/icon.icon). macos-14 has no Xcode 26; there the step below
+    # falls back to the classic .icns instead of failing the build.
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Select Xcode 26
+        run: |
+          xcode=$(find /Applications -maxdepth 1 -name "Xcode_26*.app" | sort -V | tail -1)
+          if [ -n "$xcode" ]; then
+            sudo xcode-select -s "$xcode"
+            echo "Using $xcode for the layered icon"
+          else
+            # scripts/pack.mjs picks the layered icon whenever `actool` runs,
+            # and electron-builder then rejects any actool older than 26. A
+            # failing shim makes pack.mjs choose build/icon.icns instead.
+            mkdir -p "$RUNNER_TEMP/no-actool"
+            printf '#!/bin/sh\nexit 1\n' > "$RUNNER_TEMP/no-actool/actool"
+            chmod +x "$RUNNER_TEMP/no-actool/actool"
+            echo "$RUNNER_TEMP/no-actool" >> "$GITHUB_PATH"
+            echo "::warning::No Xcode 26 on this runner; the Mac app gets the classic .icns icon."
+          fi
+
+      - name: Configure signing
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          put() { { echo "$1<<__CLAWMUSE_EOF__"; printf '%s\n' "$2"; echo "__CLAWMUSE_EOF__"; } >> "$GITHUB_ENV"; }
+          if [ -n "$CSC_LINK" ]; then
+            put CSC_LINK "$CSC_LINK"
+            put CSC_KEY_PASSWORD "$CSC_KEY_PASSWORD"
+            if [ -n "$APPLE_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+              put APPLE_ID "$APPLE_ID"
+              put APPLE_APP_SPECIFIC_PASSWORD "$APPLE_APP_SPECIFIC_PASSWORD"
+              put APPLE_TEAM_ID "$APPLE_TEAM_ID"
+              put MAC_NOTARIZE true
+              echo "Signing with Developer ID and notarizing."
+            else
+              put MAC_NOTARIZE false
+              echo "::warning::Signing with Developer ID but NOT notarizing: APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID are required for that."
+            fi
+          else
+            put CSC_IDENTITY_AUTO_DISCOVERY false
+            put MAC_NOTARIZE false
+            echo "::warning::No CSC_LINK secret: the Mac build is unsigned (ad-hoc signed by scripts/after-sign.mjs)."
+          fi
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Package
+        run: |
+          args=(--mac --arm64 --x64 --publish never)
+          # electron-builder.yml keeps notarize off so local builds need no network.
+          if [ "$MAC_NOTARIZE" = true ]; then args+=(-c.mac.notarize=true); fi
+          node scripts/pack.mjs "${args[@]}"
+
+      - name: Verify the app bundles
+        run: |
+          for app in dist/mac-arm64/ClawMuse.app dist/mac/ClawMuse.app; do
+            codesign --verify --deep --strict --verbose=2 "$app"
+          done
+          if [ "$MAC_NOTARIZE" = true ]; then
+            for dmg in dist/*.dmg; do xcrun stapler validate "$dmg"; done
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clawmuse-mac
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.blockmap
+            dist/latest-mac.yml
+
+  windows:
+    name: Windows (x64 + arm64)
+    needs: version
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # scripts/vendor-npm.mjs and scripts/pack.mjs start `npm`/`npx` without a
+      # shell, which Windows cannot resolve (npm.cmd), so this job runs their
+      # steps directly: fetch the pinned npm tarball, then let vendor-npm.mjs
+      # check it against the lockfile's integrity.
+      - name: Vendor the pinned npm
+        run: |
+          version=$(node -p "require('./package-lock.json').packages['node_modules/npm'].version")
+          mkdir -p vendor
+          npm pack "npm@$version" --pack-destination vendor --silent
+          node scripts/vendor-npm.mjs
+
+      - name: Bundle
+        run: npx electron-vite build
+
+      - name: Package
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          AZURE_TRUSTED_SIGNING_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_PROFILE }}
+          AZURE_TRUSTED_SIGNING_PUBLISHER: ${{ secrets.AZURE_TRUSTED_SIGNING_PUBLISHER }}
+          WIN_CSC_LINK_SECRET: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD_SECRET: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          args=(--win --x64 --arm64 --publish never)
+          if [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_CLIENT_SECRET" ] \
+            && [ -n "$AZURE_TRUSTED_SIGNING_ENDPOINT" ] && [ -n "$AZURE_TRUSTED_SIGNING_ACCOUNT" ] \
+            && [ -n "$AZURE_TRUSTED_SIGNING_PROFILE" ] && [ -n "$AZURE_TRUSTED_SIGNING_PUBLISHER" ]; then
+            echo "Signing with Azure Trusted Signing."
+            args+=(
+              "-c.win.azureSignOptions.endpoint=$AZURE_TRUSTED_SIGNING_ENDPOINT"
+              "-c.win.azureSignOptions.codeSigningAccountName=$AZURE_TRUSTED_SIGNING_ACCOUNT"
+              "-c.win.azureSignOptions.certificateProfileName=$AZURE_TRUSTED_SIGNING_PROFILE"
+              "-c.win.azureSignOptions.publisherName=$AZURE_TRUSTED_SIGNING_PUBLISHER"
+            )
+          else
+            unset AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET
+            if [ -n "$WIN_CSC_LINK_SECRET" ]; then
+              echo "Signing with the WIN_CSC_LINK certificate."
+              export WIN_CSC_LINK="$WIN_CSC_LINK_SECRET" WIN_CSC_KEY_PASSWORD="$WIN_CSC_KEY_PASSWORD_SECRET"
+            else
+              export CSC_IDENTITY_AUTO_DISCOVERY=false
+              echo "::warning::No Windows signing secrets: the installers are unsigned and SmartScreen will warn."
+            fi
+          fi
+          npx electron-builder "${args[@]}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clawmuse-windows
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
+
+  publish:
+    name: Publish GitHub Release
+    if: github.ref_type == 'tag'
+    needs: [version, mac, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: release
+        run: |
+          sha256sum -- *.dmg *.zip *.exe > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.version.outputs.version }}
+        working-directory: release
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" ./* --clobber
+          else
+            gh release create "$TAG" ./* --verify-tag --title "ClawMuse $VERSION" --generate-notes
+          fi
