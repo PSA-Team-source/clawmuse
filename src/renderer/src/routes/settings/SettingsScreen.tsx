@@ -96,7 +96,10 @@ export default function SettingsScreen({ section = 'general' }: { section?: 'gen
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>({ state: 'idle' })
 
-  useEffect(() => window.clawmuse.updater.onStatus(setUpdateStatus), [])
+  useEffect(() => {
+    void window.clawmuse.updater.status().then(setUpdateStatus).catch(() => undefined)
+    return window.clawmuse.updater.onStatus(setUpdateStatus)
+  }, [])
 
   // The main process owns the registered accelerator — read it fresh rather
   // than trusting the cached `quickChatShortcut` setting alone.
@@ -186,7 +189,7 @@ export default function SettingsScreen({ section = 'general' }: { section?: 'gen
   }
 
   async function handleCheckForUpdates(): Promise<void> {
-    if (updateStatus.state === 'downloaded') {
+    if (updateStatus.state === 'downloaded' || updateStatus.state === 'manual') {
       await window.clawmuse.updater.install()
       return
     }
@@ -222,7 +225,7 @@ export default function SettingsScreen({ section = 'general' }: { section?: 'gen
     { value: CUSTOM_SHORTCUT, label: recording ? 'Press a key combination…' : 'Custom…' },
     { value: NO_SHORTCUT, label: 'No shortcut' },
   ]
-  const updateLabel = updateStatus.state === 'downloaded' ? `Install update (${updateStatus.version})` : checkingUpdate || updateStatus.state === 'checking' ? 'Checking…' : 'Check for updates'
+  const updateLabel = updateStatus.state === 'downloaded' ? `Install update (${updateStatus.version})` : updateStatus.state === 'manual' ? `Download ${updateStatus.version}` : checkingUpdate || updateStatus.state === 'checking' ? 'Checking…' : 'Check for updates'
   const runtimeLabel =
     runtimeStatus.state === 'ready'
       ? runtimeStatus.attached

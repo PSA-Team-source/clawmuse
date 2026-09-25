@@ -287,6 +287,7 @@ export function registerIpcHandlers(): void {
   // ── Updates ───────────────────────────────────────────────────────────────
   ipcMain.handle('updater:check', () => checkForUpdates(true))
   ipcMain.handle('updater:install', () => installUpdate())
+  ipcMain.handle('updater:status', () => getUpdateStatus())
 
   // ── Global shortcut ───────────────────────────────────────────────────────
   ipcMain.handle('shortcut:get', () => getShortcut())

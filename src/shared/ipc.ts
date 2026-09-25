@@ -50,6 +50,8 @@ export type UpdateStatus =
   | { state: 'not-available' }
   | { state: 'downloading'; percent: number; bytesPerSecond: number }
   | { state: 'downloaded'; version: string }
+  /** A newer version the user installs from its download page (unsigned macOS builds). */
+  | { state: 'manual'; version: string; url: string }
   | { state: 'error'; message: string }
 
 /** Settings > General > App behavior, persisted by the main process. */
@@ -440,6 +442,7 @@ export interface IpcInvokeMap {
 
   'updater:check': { req: void; res: void }
   'updater:install': { req: void; res: void }
+  'updater:status': { req: void; res: UpdateStatus }
 
   'shortcut:get': { req: void; res: string }
   'shortcut:set': { req: string; res: boolean }

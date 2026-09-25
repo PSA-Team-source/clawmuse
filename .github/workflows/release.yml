@@ -242,7 +242,14 @@ jobs:
         working-directory: release
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" ./* --clobber
+            # Never replace a file already on the release: its installers may
+            # be the verified ones whose checksums the site publishes. Only
+            # missing files (e.g. update manifests) are added.
+            have=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+            for f in ./*; do
+              name=$(basename "$f")
+              if grep -qxF "$name" <<<"$have"; then echo "keep $name"; else gh release upload "$TAG" "$f"; fi
+            done
           else
             gh release create "$TAG" ./* --verify-tag --title "ClawMuse $VERSION" --generate-notes
           fi

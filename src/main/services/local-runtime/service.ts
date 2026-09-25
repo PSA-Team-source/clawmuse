@@ -392,10 +392,13 @@ export async function lintConfig(bin: string): Promise<ConfigLintFinding[]> {
   // to be read regardless of exit code, and anything unreadable is reported as a
   // problem rather than as success. Failing open here means shipping a broken
   // config and calling it ready.
-  const result = await run(bin, argv(['config', 'validate', '--json']), {
-    env: openclawEnv(),
-    timeoutMs: 60_000,
-  })
+  const validate = (timeoutMs: number) => run(bin, argv(['config', 'validate', '--json']), { env: openclawEnv(), timeoutMs })
+  let result = await validate(60_000)
+  // A timeout is "unknown", not "invalid". The first CLI start after the runtime
+  // unpacks can exceed a minute on Windows while Defender scans the fresh files
+  // (measured on a clean VM: exit -1, then a retry that passed), so give a slow
+  // cold start one longer try before reporting it.
+  if (result.timedOut) result = await validate(180_000)
 
   const problem = (message: string): ConfigLintFinding[] => [
     { checkId: 'config/validate', severity: 'error', message },
@@ -404,7 +407,7 @@ export async function lintConfig(bin: string): Promise<ConfigLintFinding[]> {
   const start = result.stdout.search(/[{[]/)
   if (start < 0) {
     return problem(
-      firstMeaningfulLine(result.stderr) || `config validate failed (exit ${result.code})`,
+      result.timedOut ? 'config validate did not finish within 3 minutes' : firstMeaningfulLine(result.stderr) || `config validate failed (exit ${result.code})`,
     )
   }
 

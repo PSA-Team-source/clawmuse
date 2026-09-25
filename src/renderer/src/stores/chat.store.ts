@@ -100,8 +100,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   async loadMessages(sessionId) {
+    // The cache only seeds a thread that has nothing on screen. It is the last
+    // server snapshot, so over a live thread it would roll back whatever landed
+    // since — the message just sent, the reply just received.
     const cached = cache.getMessages(sessionId)
-    if (cached?.length) {
+    if (cached?.length && !get().messages[sessionId]?.length) {
       set((state) => ({ messages: { ...state.messages, [sessionId]: cached } }))
     }
 
@@ -116,7 +119,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (typeof reason === 'string' && reason.trim()) history[history.length - 1] = { ...last, content: failureNotice(reason) }
       }
       cache.setMessages(sessionId, history)
-      set((state) => ({ messages: { ...state.messages, [sessionId]: history } }))
+      set((state) => ({
+        messages: { ...state.messages, [sessionId]: withUnconfirmedSends(history, state.messages[sessionId] ?? []) },
+      }))
     } catch {
       /* keep cache */
     }
@@ -482,6 +487,41 @@ function keepLocalDrafts(live: Session[], previous: Session[]): Session[] {
   const known = new Set(live.map((s) => s.id))
   const drafts = previous.filter((s) => !known.has(s.id) && !s.last_message && !s.last_message_at)
   return drafts.length ? [...drafts, ...live] : live
+}
+
+const squash = (text: string) => text.replace(/\s+/g, ' ').trim()
+
+/**
+ * Server history plus the user's own sends it does not hold yet.
+ *
+ * `chat.send` is acknowledged before the message is in the transcript: the
+ * gateway keeps it in pending-input custody (a queued follow-up, a busy
+ * session) until the run commits it. Any reload in that window — the final of
+ * another run on the same session, a remount, search — used to replace the
+ * thread with a history that lacks it, so the user's message vanished until
+ * the reply landed.
+ *
+ * A send is confirmed by a user row that is new to this thread (its id was not
+ * on screen before) and carries the same words; each row confirms one send, in
+ * order, so sending the same text twice still shows twice. Everything else of
+ * the thread stays exactly as the server has it.
+ */
+function withUnconfirmedSends(history: Message[], local: Message[]): Message[] {
+  const pending = local.filter((m) => m.role === 'user' && m.id.startsWith('opt_'))
+  if (!pending.length) return history
+  const seen = new Set(local.map((m) => m.id))
+  const fresh = history.filter((m) => m.role === 'user' && !seen.has(m.id))
+  const unconfirmed = pending.filter((send) => {
+    const text = squash(send.content)
+    const match = fresh.findIndex((row) => {
+      const stored = squash(row.content)
+      return stored === text || (text !== '' && stored.includes(text))
+    })
+    if (match === -1) return true
+    fresh.splice(match, 1)
+    return false
+  })
+  return unconfirmed.length ? [...history, ...unconfirmed] : history
 }
 
 function updateMessageStatus(

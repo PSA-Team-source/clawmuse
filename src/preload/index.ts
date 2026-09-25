@@ -113,6 +113,8 @@ const api = {
   updater: {
     check: (): Promise<void> => ipcRenderer.invoke('updater:check'),
     install: (): Promise<void> => ipcRenderer.invoke('updater:install'),
+    /** The latest status, for a screen that mounts after it was broadcast. */
+    status: (): Promise<UpdateStatus> => ipcRenderer.invoke('updater:status'),
     onStatus: (cb: (status: UpdateStatus) => void): Unsubscribe => on('update-status', cb),
   },
 

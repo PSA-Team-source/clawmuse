@@ -1,6 +1,8 @@
+import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { BrowserWindow, dialog } from 'electron'
+import { promisify } from 'node:util'
+import { BrowserWindow, Notification, app, dialog, shell } from 'electron'
 import log from 'electron-log/main.js'
 import electronUpdater from 'electron-updater'
 import type { UpdateStatus } from '@shared/ipc'
@@ -56,6 +58,51 @@ function broadcast(status: UpdateStatus): void {
   }
 }
 
+/**
+ * macOS installs an update in place only for a Developer ID-signed app
+ * (Squirrel.Mac validates the new bundle against the running one's signature;
+ * Electron: "Your application must be signed for automatic updates on macOS").
+ * An ad-hoc-signed build would download the update and then fail to apply it,
+ * so it checks and points the user at the installer instead. Signing the build
+ * turns full auto-update on with no code change.
+ */
+async function macNeedsManualUpdate(): Promise<boolean> {
+  if (process.platform !== 'darwin') return false
+  const bundle = join(app.getPath('exe'), '..', '..', '..')
+  try {
+    const { stderr } = await promisify(execFile)('/usr/bin/codesign', ['-dv', '--verbose=2', bundle], { timeout: 10_000 })
+    return !/Authority=Developer ID Application/.test(stderr)
+  } catch {
+    return true
+  }
+}
+
+let manualInstall = false
+let notifiedVersion: string | null = null
+const manualUrl = () => `https://clawmuse.app/download/${process.arch === 'arm64' ? 'mac-arm64' : 'mac-x64'}`
+
+function offerManualUpdate(version: string): void {
+  const url = manualUrl()
+  broadcast({ state: 'manual', version, url })
+  if (interactive) {
+    interactive = false
+    void dialog.showMessageBox({
+      type: 'info',
+      message: `ClawMuse ${version} is available.`,
+      detail: 'Download the new version and drag it into Applications to replace this one. Your chats and settings stay.',
+      buttons: ['Download', 'Later'],
+      defaultId: 0,
+    }).then(({ response }) => { if (response === 0) void shell.openExternal(url) })
+    return
+  }
+  // Once per version, not on every 6-hourly check.
+  if (notifiedVersion === version || !Notification.isSupported()) return
+  notifiedVersion = version
+  const notice = new Notification({ title: `ClawMuse ${version} is available`, body: 'Click to download the new version.' })
+  notice.on('click', () => void shell.openExternal(url))
+  notice.show()
+}
+
 export function getUpdateStatus(): UpdateStatus {
   return lastStatus
 }
@@ -85,9 +132,19 @@ export function initUpdater(): void {
   // relaunch mid-conversation would drop a streaming agent response.
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
+  void macNeedsManualUpdate().then((manual) => {
+    manualInstall = manual
+    if (!manual) return
+    autoUpdater.autoDownload = false
+    autoUpdater.autoInstallOnAppQuit = false
+    log.info('[updater] macOS build is not Developer ID-signed: updates are offered as a download')
+  })
 
   autoUpdater.on('checking-for-update', () => broadcast({ state: 'checking' }))
-  autoUpdater.on('update-available', (info) => broadcast({ state: 'available', version: info.version }))
+  autoUpdater.on('update-available', (info) => {
+    if (manualInstall) offerManualUpdate(info.version)
+    else broadcast({ state: 'available', version: info.version })
+  })
   autoUpdater.on('update-not-available', () => {
     broadcast({ state: 'not-available' })
     if (interactive) {
@@ -166,6 +223,10 @@ export async function checkForUpdates(fromUser = false): Promise<void> {
 
 /** Applies a downloaded update. No-op unless `update-downloaded` has fired. */
 export function installUpdate(): void {
+  if (lastStatus.state === 'manual') {
+    void shell.openExternal(lastStatus.url)
+    return
+  }
   if (lastStatus.state !== 'downloaded') return
   autoUpdater.quitAndInstall()
 }
