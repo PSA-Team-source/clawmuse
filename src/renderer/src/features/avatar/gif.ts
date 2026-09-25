@@ -30,6 +30,33 @@ export interface GifOptions {
 const ALPHA_CUTOFF = 128
 
 export function encodeGif(frames: readonly GifFrame[], opts: GifOptions): Uint8Array {
+  const steps = gifSteps(frames, opts)
+  for (let r = steps.next(); ; r = steps.next()) if (r.done) return r.value
+}
+
+/**
+ * The same bytes as `encodeGif`, handing the thread back after every frame so
+ * a large clip (a share clip is ~850×600 px a frame) never freezes the UI.
+ */
+export async function encodeGifAsync(frames: readonly GifFrame[], opts: GifOptions): Promise<Uint8Array> {
+  const steps = gifSteps(frames, opts)
+  for (let r = steps.next(); ; r = steps.next()) {
+    if (r.done) return r.value
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+}
+
+/**
+ * The encoder, yielding once per frame of work.
+ *
+ * Opaque clips store only what changed: after the first frame, each frame is
+ * the bounding box of pixels whose palette index differs from the frame before,
+ * drawn over it (disposal 1). A share clip's card is still and only the avatar
+ * moves, so each frame costs the avatar's corner, not the whole card.
+ * Transparent clips keep whole frames with disposal 2 — over alpha, a
+ * sub-rectangle could not erase where the figure was.
+ */
+function* gifSteps(frames: readonly GifFrame[], opts: GifOptions): Generator<void, Uint8Array> {
   const { width, height } = opts
   if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0 || width > 65535 || height > 65535) {
     throw new RangeError('GIF dimensions must be integers in 1..65535')
@@ -41,7 +68,12 @@ export function encodeGif(frames: readonly GifFrame[], opts: GifOptions): Uint8A
     if (f.data.length !== pixels * 4) throw new RangeError('Frame size does not match width × height')
   }
 
-  const { palette, lookup } = buildPalette(frames, transparent ? 255 : 256)
+  const hist = new Uint32Array(32768)
+  for (const f of frames) {
+    addToHistogram(hist, f.data)
+    yield
+  }
+  const { palette, lookup } = buildPalette(hist, transparent ? 255 : 256)
   const transparentIndex = transparent ? 255 : -1
 
   const out = new ByteWriter(pixels * frames.length * 0.3 + 1024)
@@ -64,7 +96,8 @@ export function encodeGif(frames: readonly GifFrame[], opts: GifOptions): Uint8A
   out.u16(opts.loop ?? 0)
   out.byte(0)
 
-  const indices = new Uint8Array(pixels)
+  let indices: Uint8Array = new Uint8Array(pixels)
+  let previous: Uint8Array | null = null
   let elapsedCs = 0
   for (let f = 0; f < frames.length; f++) {
     const data = frames[f]!.data
@@ -79,22 +112,57 @@ export function encodeGif(frames: readonly GifFrame[], opts: GifOptions): Uint8A
     const endCs = Math.round(((f + 1) * opts.frameMs) / 10)
     const delay = Math.max(2, endCs - elapsedCs)
     elapsedCs = endCs
-    // Graphic control: disposal 2 (restore to background), transparency flag.
-    out.bytes([0x21, 0xf9, 0x04, (2 << 2) | (transparent ? 1 : 0)])
+    const rect = previous ? changedRect(previous, indices, width, height) : { x: 0, y: 0, w: width, h: height }
+    // Graphic control: disposal 2 (restore to background) with alpha, 1 (keep) for opaque deltas.
+    out.bytes([0x21, 0xf9, 0x04, ((transparent ? 2 : 1) << 2) | (transparent ? 1 : 0)])
     out.u16(delay)
     out.byte(transparent ? transparentIndex : 0)
     out.byte(0)
-    // Image descriptor, full frame, no local table.
+    // Image descriptor, no local table.
     out.byte(0x2c)
-    out.u16(0)
-    out.u16(0)
-    out.u16(width)
-    out.u16(height)
+    out.u16(rect.x)
+    out.u16(rect.y)
+    out.u16(rect.w)
+    out.u16(rect.h)
     out.byte(0)
-    lzwEncode(indices, 8, out)
+    lzwEncode(rect.w === width && rect.h === height ? indices : crop(indices, width, rect), 8, out)
+    if (!transparent) {
+      // Swap buffers: this frame becomes the one the next is diffed against.
+      const done = indices
+      indices = previous ?? new Uint8Array(pixels)
+      previous = done
+    }
+    yield
   }
   out.byte(0x3b)
   return out.result()
+}
+
+/** Bounding box of the pixels that differ; an unchanged frame keeps one pixel so its delay still counts. */
+function changedRect(a: Uint8Array, b: Uint8Array, width: number, height: number) {
+  let x0 = width
+  let y0 = height
+  let x1 = -1
+  let y1 = -1
+  for (let y = 0, p = 0; y < height; y++) {
+    for (let x = 0; x < width; x++, p++) {
+      if (a[p] === b[p]) continue
+      if (x < x0) x0 = x
+      if (x > x1) x1 = x
+      if (y < y0) y0 = y
+      y1 = y
+    }
+  }
+  return x1 < 0 ? { x: 0, y: 0, w: 1, h: 1 } : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 }
+}
+
+function crop(indices: Uint8Array, width: number, r: { x: number; y: number; w: number; h: number }): Uint8Array {
+  const out = new Uint8Array(r.w * r.h)
+  for (let y = 0; y < r.h; y++) {
+    const from = (r.y + y) * width + r.x
+    out.set(indices.subarray(from, from + r.w), y * r.w)
+  }
+  return out
 }
 
 // ── Palette ───────────────────────────────────────────────────────────────────
@@ -107,15 +175,14 @@ function channel(bin: number, c: number): number {
   return (bin >> (10 - c * 5)) & 31
 }
 
-function buildPalette(frames: readonly GifFrame[], maxColors: number) {
-  const hist = new Uint32Array(32768)
-  for (const f of frames) {
-    const d = f.data
-    for (let i = 0; i < d.length; i += 4) {
-      if (d[i + 3]! < ALPHA_CUTOFF) continue
-      hist[((d[i]! >> 3) << 10) | ((d[i + 1]! >> 3) << 5) | (d[i + 2]! >> 3)]!++
-    }
+function addToHistogram(hist: Uint32Array, d: Uint8ClampedArray | Uint8Array): void {
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3]! < ALPHA_CUTOFF) continue
+    hist[((d[i]! >> 3) << 10) | ((d[i + 1]! >> 3) << 5) | (d[i + 2]! >> 3)]!++
   }
+}
+
+function buildPalette(hist: Uint32Array, maxColors: number) {
   const used: number[] = []
   for (let b = 0; b < hist.length; b++) if (hist[b]) used.push(b)
 

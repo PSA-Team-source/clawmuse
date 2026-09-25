@@ -4,10 +4,12 @@ import { FavouriteIcon, FingerPrintIcon, PencilEdit02Icon } from '@hugeicons/cor
 import { Spinner } from '@/components/brand'
 import { useToast } from '@/components/patterns'
 import { Dialog, Icon } from '@/components/primitives'
+import { AgentAvatar } from '@/components/status/AgentAvatar'
 import { MeshGradientBackdrop } from '@/components/status/MeshGradientBackdrop'
 import { StatusNullState } from '@/components/status/StatusParts'
 import { errorMessage } from '@/hooks'
-import { AGENT_ID, agentIdentityKey, useAgentIdentity } from '@/lib/identity'
+import { LookEditor } from '@/features/avatar/LookEditor'
+import { AGENT_ID, agentIdentityKey, useAgentAvatar, useAgentIdentity } from '@/lib/identity'
 import { FileEditor } from '@/routes/chat/AgentFilesPanel'
 import { gatewayWS } from '@/services/gateway-ws.service'
 import { parseIdentityMarkdown } from './identity-file'
@@ -140,6 +142,7 @@ export default function IdentityTab() {
     queryFn: () => gatewayWS.call<{ files?: WorkspaceFile[] }>('agents.files.list', { agentId: AGENT_ID }),
   })
   const [openFile, setOpenFile] = useState<string | null>(null)
+  const photo = useAgentAvatar(identity.data)
 
   if (identity.isPending || identityFile.isPending) {
     return <div className="flex justify-center pt-8"><Spinner size={22} /></div>
@@ -151,7 +154,6 @@ export default function IdentityTab() {
   const fields = parseIdentityMarkdown(identityFile.data?.content ?? '')
   const tagline = fields.tagline ?? fields.theme
   const name = identity.data?.name?.trim() || fields.name || ''
-  const emoji = identity.data?.emoji?.trim() || fields.emoji || ''
   const modified = (fileName: string) => {
     const entry = files.data?.files?.find((file) => file.name === fileName)
     return entry && !entry.missing ? entry.updatedAtMs : undefined
@@ -160,11 +162,8 @@ export default function IdentityTab() {
   return (
     <div className="space-y-5 px-4 pb-3 pt-2">
       <div className="muse-identity-card relative bg-fill-raised pb-4 pt-3">
-        {emoji && (
-          <div className="absolute end-4 top-3 flex size-9 items-center justify-center rounded-full bg-fill-strong">
-            <span className="muse-identity-emoji" aria-hidden="true">{emoji}</span>
-          </div>
-        )}
+        {/* The agent's face, as everywhere else: its photo or the ClawMuse avatar, not the identity emoji. */}
+        <AgentAvatar size={36} className="absolute end-4 top-3 bg-fill-strong" />
         <div className="pe-14 ps-4">
           <h3 className="text-body font-medium text-content-primary">{name || 'Unnamed'}</h3>
           {tagline && <p className="mt-0.5 truncate text-footnote text-content-secondary" title={tagline}>{tagline}</p>}
@@ -182,6 +181,14 @@ export default function IdentityTab() {
           </button>
         </div>
       </div>
+
+      {/* A photo avatar replaces the 3D character, so its look only matters without one. */}
+      {!photo && (
+        <div className="muse-identity-card bg-fill-raised px-4 pb-4 pt-3">
+          <h3 className="mb-3 text-body font-medium text-content-primary">Avatar</h3>
+          <LookEditor />
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <FileCard title="SOUL" tone="soul" modifiedAt={modified('SOUL.md')} onClick={() => setOpenFile('SOUL.md')} />

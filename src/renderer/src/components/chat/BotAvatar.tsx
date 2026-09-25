@@ -1,4 +1,7 @@
+import { useMemo } from 'react'
+import { AvatarBadge, avatarConfigForAgent } from '@/features/avatar'
 import { cn } from '@/lib/cn'
+import { useBotsStore } from '@/stores/bots.store'
 
 /**
  * A bot's face in the roster and at the top of its thread.
@@ -62,6 +65,18 @@ export function BotAvatar({
   // no meaning in the renderer, and turning one into a `file://` URL would give
   // page context a read primitive on the user's disk.
   const src = avatar && /^(https?:|data:)/.test(avatar) ? avatar : null
+  // The default agent is ClawMuse itself: without an image of its own it is
+  // shown as the ClawMuse avatar, never as its identity emoji.
+  const isDefault = useBotsStore((state) => state.bots.some((bot) => bot.id === id && bot.isDefault))
+  const config = useMemo(() => avatarConfigForAgent({ id, name, isDefault: true }), [id, name])
+
+  if (isDefault && !src) {
+    return (
+      <span className={cn('flex shrink-0 overflow-hidden rounded-full bg-bg-panel', className)} style={{ width: size, height: size }} title={name}>
+        <AvatarBadge config={config} size={size} />
+      </span>
+    )
+  }
 
   return (
     <div

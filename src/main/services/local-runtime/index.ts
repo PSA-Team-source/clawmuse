@@ -26,6 +26,7 @@ import {
 } from './config-gen.js'
 import { patchEnvFile, readEnvFile } from './env-file.js'
 import { installBundledRuntime } from './bundled-runtime.js'
+import { ensureAvatarSkill, watchAvatarLook } from '../avatar-look.js'
 import { ensureBundledNpm, installOpenclawCli } from './install-cli.js'
 import { checkNode } from './node-check.js'
 import { DEFAULT_PORT, paths, wsUrlFor } from './paths.js'
@@ -80,7 +81,12 @@ function setStatus(next: LocalRuntimeStatus): void {
   // the gateway treats a native app as a browser and refuses to pair it. Register
   // the strip as soon as we know the port, before the renderer is told it may
   // connect.
-  if (next.state === 'ready') installGatewayOriginStrip(next.port)
+  if (next.state === 'ready') {
+    installGatewayOriginStrip(next.port)
+    // The workspace exists by now: keep the avatar skill current and follow avatar.json.
+    void ensureAvatarSkill()
+    watchAvatarLook()
+  }
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) win.webContents.send('runtime-status', next)
   }

@@ -282,6 +282,8 @@ class BadgeHub {
         for (const s of list) {
           s.ctx.clearRect(0, 0, px, px)
           s.ctx.drawImage(this.glCanvas, 0, sy, px, px, 0, 0, px, px)
+          // AvatarBadge shows a still until this is set (see avatar-still.png).
+          s.canvas.dataset.drawn ??= ''
         }
         drew = true
       }

@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { gatewayWS } from '@/services/gateway-ws.service'
 import { useAppearanceStore } from '@/stores/appearance.store'
 import { avatarPalette, dominantColor } from '@/lib/avatar'
+import { exportPng, hasWebGL, type AvatarConfig } from '@/features/avatar'
+import { startAvatarLookSync, useAvatarLook, withLook } from '@/features/avatar/look'
 
 /** The local agent's identity (IDENTITY.md) as the gateway resolves it. */
 export interface AgentIdentity {
@@ -35,13 +37,40 @@ async function gatewayImage(path: string): Promise<string | null> {
   if (!credentials) return null
   const response = await fetch(`http://127.0.0.1:${credentials.port}${path}`, { headers: { Authorization: `Bearer ${credentials.token}` } })
   if (!response.ok) return null
-  const blob = await response.blob()
-  return await new Promise<string>((resolve, reject) => {
+  return blobToDataUrl(await response.blob())
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result))
     reader.onerror = () => reject(reader.error)
     reader.readAsDataURL(blob)
   })
+}
+
+let portrait: { key: string; face: Promise<string | null> } | null = null
+/**
+ * The floating pill's face when the agent has no avatar image: a still of the
+ * ClawMuse avatar, head and shoulders, drawn once per window.
+ *
+ * A still rather than a live badge, measured: the pill is its own window (a
+ * `data:` page with an inline-only CSP), so a live avatar there means a second
+ * copy of the three.js chunk and a WebGL context held for as long as the pill
+ * floats over other apps — to animate a 36 px circle. The still is one frame
+ * rendered here (~3 KB PNG, measured); without WebGL the pill keeps the app icon.
+ */
+function avatarPortrait(look: AvatarConfig | null): Promise<string | null> {
+  const key = JSON.stringify(look)
+  if (portrait?.key !== key) {
+    portrait = {
+      key,
+      face: hasWebGL()
+        ? exportPng(withLook(undefined, look), { framing: 'bust', size: 96, state: 'idle' }).then(blobToDataUrl).catch(() => null)
+        : Promise.resolve(null),
+    }
+  }
+  return portrait.face
 }
 
 /** A workspace-path avatar (what set-identity writes) is served by the gateway at /avatar/<agent>. */
@@ -99,6 +128,9 @@ export function useAgentIdentitySync(): void {
   const setAvatarPalette = useAppearanceStore((state) => state.setAvatarPalette)
   const image = useAgentAvatar(identity.data)
   const name = identity.data?.name
+  const look = useAvatarLook((state) => state.look)
+
+  useEffect(startAvatarLookSync, [])
 
   useEffect(() => {
     if (identity.isPending) return
@@ -110,6 +142,14 @@ export function useAgentIdentitySync(): void {
 
   useEffect(() => {
     if (identity.isPending) return
-    window.clawmuse.floating.setIdentity(name ?? null, image)
-  }, [identity.isPending, name, image])
+    if (image) {
+      window.clawmuse.floating.setIdentity(name ?? null, image)
+      return
+    }
+    let cancelled = false
+    void avatarPortrait(look).then((face) => {
+      if (!cancelled) window.clawmuse.floating.setIdentity(name ?? null, face)
+    })
+    return () => { cancelled = true }
+  }, [identity.isPending, name, image, look])
 }

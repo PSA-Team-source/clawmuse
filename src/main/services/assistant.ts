@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { BrowserWindow, Notification, app, nativeImage, powerMonitor } from 'electron'
 import log from 'electron-log/main.js'
 import {
+  ASSISTANT_JOBS,
   DEFAULT_ASSISTANT_SETTINGS,
   DEFAULT_FEED_PROMPT,
   checkInBlocked,
@@ -13,6 +14,7 @@ import {
   feedWriteRequest,
   ideasRequest,
   isLegacyAppRunChat,
+  isUserChat,
   mergeNews,
   parseAssistantSettings,
   parseCheckIn,
@@ -29,6 +31,7 @@ import {
   type Idea,
   type JobStatus,
 } from '@shared/assistant'
+import { allowedNumbers, computeWeekFacts, hasActivity, isAppPrompt, nextRecapAt, recapDue, recapRequest, parseRecap, recapSlot, weekOf, type UserMessage, type WeeklyRecap } from '@shared/recap'
 import { PROTOCOL, resourcePath } from '../env.js'
 import { handleDeepLink } from './deeplink.js'
 import { run } from './local-runtime/exec.js'
@@ -38,7 +41,7 @@ import { resolveOpenclaw } from './local-runtime/resolve.js'
 import { searchNews } from './news.js'
 
 /**
- * The built-in assistant engine: Feed, Ideas and check-ins run here, in main,
+ * The built-in assistant engine: Feed, Ideas, check-ins and the Weekly Recap run here, in main,
  * so they keep working with every window closed (the app lives on in the
  * tray) and never create a chat.
  *
@@ -56,6 +59,7 @@ const TICK_MS = 60_000
 const INFER_TIMEOUT_MS = 180_000
 const FEED_CAP = 60
 const CHECKIN_HISTORY = 50
+const RECAP_HISTORY = 12
 /** An undelivered check-in older than this is stale — dropped, not sent late. */
 const PENDING_TTL_MS = 2 * 3600_000
 
@@ -69,7 +73,7 @@ interface Persisted extends Omit<AssistantState, 'available'> {
   contextAt: string | null
 }
 
-const JOBS: readonly AssistantJob[] = ['feed', 'ideas', 'checkin']
+const JOBS = ASSISTANT_JOBS
 const idleJob = (): JobStatus => ({ running: null, lastRunAt: null, lastSuccessAt: null, lastError: null, note: null, nextRunAt: null })
 
 const file = () => join(app.getPath('userData'), 'assistant.json')
@@ -85,7 +89,8 @@ function fresh(): Persisted {
     hiddenIdeas: [],
     checkIns: [],
     pendingCheckIn: null,
-    jobs: { feed: idleJob(), ideas: idleJob(), checkin: idleJob() },
+    recaps: [],
+    jobs: { feed: idleJob(), ideas: idleJob(), checkin: idleJob(), recap: idleJob() },
     context: { goals: [], recentAsks: [], lastUserMessageAt: null, notificationsEnabled: true },
     lastEvaluatedAt: null,
     legacyImported: false,
@@ -120,6 +125,7 @@ function load(): Persisted {
       hiddenIdeas: strings(raw.hiddenIdeas, 2000),
       checkIns: Array.isArray(raw.checkIns) ? raw.checkIns : [],
       pendingCheckIn: raw.pendingCheckIn ?? null,
+      recaps: Array.isArray(raw.recaps) ? raw.recaps.slice(0, RECAP_HISTORY) : [],
       jobs,
       context: { ...base.context, ...raw.context },
       lastEvaluatedAt: raw.lastEvaluatedAt ?? null,
@@ -190,6 +196,7 @@ function withNextRuns(jobs: Record<AssistantJob, JobStatus>, settings: Assistant
     feed: { ...jobs.feed, nextRunAt: settings.dailyFeed ? nextDaily(now, settings.feedTime, jobs.feed.lastSuccessAt) : null },
     ideas: { ...jobs.ideas, nextRunAt: settings.dailyIdeas ? nextDaily(now, settings.feedTime, jobs.ideas.lastSuccessAt) : null },
     checkin: { ...jobs.checkin, nextRunAt: null },
+    recap: { ...jobs.recap, nextRunAt: settings.weeklyRecap ? nextRecapAt(now, settings, jobs.recap.lastSuccessAt).toISOString() : null },
   }
 }
 
@@ -379,25 +386,26 @@ async function deliver(checkIn: CheckIn): Promise<void> {
   const s = current()
   s.checkIns = [checkIn, ...s.checkIns].slice(0, CHECKIN_HISTORY)
   s.pendingCheckIn = null
-  notify(checkIn.message)
+  notify('check-in', checkIn.message, 'chat')
 }
 
-function notify(message: string): void {
+/** A banner for something the assistant delivered; clicking it opens `route`. */
+function notify(what: string, message: string, route: string, title = 'ClawMuse'): void {
   if (!current().context.notificationsEnabled || !Notification.isSupported()) {
-    log.info('[assistant] check-in notification skipped: notifications off or unsupported')
+    log.info(`[assistant] ${what} notification skipped: notifications off or unsupported`)
     return
   }
   // Someone looking at the app sees the message land; a banner on top is noise.
   if (BrowserWindow.getAllWindows().some((win) => !win.isDestroyed() && win.isFocused())) {
-    log.info('[assistant] check-in notification skipped: app is focused')
+    log.info(`[assistant] ${what} notification skipped: app is focused`)
     return
   }
-  const notification = new Notification({ title: 'ClawMuse', body: message.length > 180 ? `${message.slice(0, 177)}…` : message, icon: resourcePath('icon.png') })
-  notification.on('click', () => handleDeepLink(`${PROTOCOL}://chat`))
+  const notification = new Notification({ title, body: message.length > 180 ? `${message.slice(0, 177)}…` : message, icon: resourcePath('icon.png') })
+  notification.on('click', () => handleDeepLink(`${PROTOCOL}://${route}`))
   // macOS reports neither a denied permission nor Focus mode; these two lines
   // are how a "never saw the banner" report gets diagnosed.
-  notification.on('show', () => log.info('[assistant] check-in notification shown'))
-  notification.on('failed', (_event, error) => log.warn('[assistant] check-in notification failed:', error))
+  notification.on('show', () => log.info(`[assistant] ${what} notification shown`))
+  notification.on('failed', (_event, error) => log.warn(`[assistant] ${what} notification failed:`, error))
   notification.show()
 }
 
@@ -429,6 +437,82 @@ async function checkInJob(signal: AbortSignal, manual: boolean): Promise<string 
   return null
 }
 
+// ── Weekly Recap ───────────────────────────────────────────────────────────
+
+/** A transcript entry's text, whether stored as a string or as content blocks. */
+function entryText(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return ''
+  return content.map((block) => (block && typeof block === 'object' && typeof (block as { text?: unknown }).text === 'string' ? (block as { text: string }).text : '')).join('')
+}
+
+/**
+ * Every message the user sent in their own chats since `since`, read from the
+ * gateway's transcripts (archived chats included) — or null when that cannot
+ * be read completely, so the recap leaves message counts out rather than
+ * printing a short one.
+ */
+async function userMessagesSince(since: number): Promise<UserMessage[] | null> {
+  try {
+    const sessions: Record<string, unknown>[] = []
+    for (const archived of [false, true]) {
+      const data = await gatewayCall('sessions.list', { limit: 500, ...(archived ? { archived: true } : {}) })
+      const list = (data.sessions ?? (data.result as { sessions?: unknown } | undefined)?.sessions) as Record<string, unknown>[] | undefined
+      if (!Array.isArray(list) || data.hasMore === true) return null
+      sessions.push(...list)
+    }
+    const moved = (entry: Record<string, unknown>) => Math.max(...[entry.lastInteractionAt, entry.lastActivityAt, entry.endedAt, entry.updatedAt].map((value) => (typeof value === 'number' && Number.isFinite(value) ? value : 0)))
+    const keys = [...new Set(sessions.filter((entry) => typeof entry.key === 'string' && isUserChat(entry.key) && moved(entry) >= since).map((entry) => entry.key as string))]
+    const messages: UserMessage[] = []
+    for (const key of keys) {
+      const data = await gatewayCall('chat.history', { sessionKey: key, limit: 1000 })
+      const entries = (Array.isArray(data.messages) ? data.messages : []) as Record<string, unknown>[]
+      const stamps = entries.map((entry) => (typeof entry.timestamp === 'number' ? entry.timestamp : Number.NaN))
+      // ponytail: one page of up to 1000 entries per chat. A chat busier than
+      // that in one week makes the counts incomplete, so they are left out;
+      // paging with `cursor` would lift the ceiling.
+      if (data.hasMore === true && !(Math.min(...stamps.filter(Number.isFinite)) < since)) return null
+      entries.forEach((entry, index) => {
+        const at = stamps[index]!
+        if (entry.role === 'user' && at >= since && !isAppPrompt(entryText(entry.content))) messages.push({ chat: key, at })
+      })
+    }
+    return messages
+  } catch (err) {
+    log.warn('[assistant] recap could not read chat history:', (err as Error).message)
+    return null
+  }
+}
+
+async function recapJob(signal: AbortSignal, manual: boolean): Promise<string | null> {
+  const s = current()
+  setJob('recap', { running: { phase: 'Looking back at your week…', startedAt: new Date().toISOString() } })
+  const now = new Date()
+  // The scheduled recap covers the week of its Sunday slot (a Monday catch-up
+  // still recaps last week); Generate now recaps the week so far.
+  const week = weekOf(manual ? now : recapSlot(now, s.settings))
+  const userMessages = await userMessagesSince(week.start.getTime())
+  if (signal.aborted) throw new AbortError()
+  const facts = computeWeekFacts({ week, now, goals: s.context.goals, feed: s.feed, feedAtCap: s.feed.length >= FEED_CAP, checkIns: s.checkIns, userMessages })
+  if (!hasActivity(facts)) return 'Nothing to recap for this week yet.'
+
+  setJob('recap', { running: { phase: 'Writing your weekly recap…', startedAt: current().jobs.recap.running?.startedAt ?? now.toISOString() } })
+  const feedTitles = s.feed.filter((unit) => Date.parse(unit.at) >= week.start.getTime() && Date.parse(unit.at) < week.end.getTime()).map((unit) => unit.title)
+  const previousFocus = s.recaps.find((recap) => recap.facts.weekStart !== facts.weekStart)?.focus
+  const allowed = allowedNumbers(facts, s.context.goals)
+  const written = await withRetry(async () => {
+    const parsed = parseRecap(await infer(recapRequest({ facts, goals: s.context.goals, feedTitles, previousFocus }), signal, 'low'), allowed)
+    if (!parsed) throw new Error("I couldn't write a recap that sticks to your real numbers. I'll try again later.")
+    return parsed
+  }, signal)
+  const recap: WeeklyRecap = { id: `r${Date.now().toString(36)}`, at: new Date().toISOString(), facts, ...written }
+  // One recap per week: a regenerated one replaces the week's earlier recap.
+  const next = current()
+  next.recaps = [recap, ...next.recaps.filter((entry) => entry.facts.weekStart !== facts.weekStart)].slice(0, RECAP_HISTORY)
+  notify('recap', recap.text, 'feed', 'Your week with ClawMuse')
+  return null
+}
+
 /** Runs one job; concurrent requests for the same job join the running one. */
 export async function runAssistantJob(job: AssistantJob, manual = false): Promise<void> {
   if (!available) {
@@ -449,7 +533,7 @@ export async function runAssistantJob(job: AssistantJob, manual = false): Promis
   const startedAt = new Date().toISOString()
   setJob(job, { running: { phase: 'Starting…', startedAt }, lastRunAt: startedAt, lastError: null, note: null })
   try {
-    const note = job === 'feed' ? await feedJob(controller.signal) : job === 'ideas' ? await ideasJob(controller.signal) : await checkInJob(controller.signal, manual)
+    const note = job === 'feed' ? await feedJob(controller.signal) : job === 'ideas' ? await ideasJob(controller.signal) : job === 'recap' ? await recapJob(controller.signal, manual) : await checkInJob(controller.signal, manual)
     setJob(job, { running: null, lastSuccessAt: new Date().toISOString(), note })
   } catch (err) {
     const stopped = err instanceof AbortError
@@ -520,6 +604,7 @@ async function tick(): Promise<void> {
     const hasContext = s.context.goals.some((goal) => !goal.completed) || s.context.recentAsks.length > 0
     if (s.settings.dailyFeed && dailyDue(now, s.settings.feedTime, s.jobs.feed.lastSuccessAt, s.jobs.feed.lastRunAt)) await runAssistantJob('feed')
     if (s.settings.dailyIdeas && dailyDue(now, s.settings.feedTime, s.jobs.ideas.lastSuccessAt, s.jobs.ideas.lastRunAt)) await runAssistantJob('ideas')
+    if (recapDue(new Date(), s.settings, s.jobs.recap.lastSuccessAt, s.jobs.recap.lastRunAt)) await runAssistantJob('recap')
 
     const blocked = s.pendingCheckIn
       ? (idleSeconds > 5 * 60 ? 'away' : null)
@@ -573,7 +658,8 @@ function parseGoals(value: unknown): Goal[] {
     const goal = item as Partial<Goal> | null
     const title = text(goal?.title, 300)
     if (!goal || !title || typeof goal.id !== 'string') return []
-    return [{ id: goal.id.slice(0, 100), title, completed: goal.completed === true, createdAt: typeof goal.createdAt === 'string' ? goal.createdAt : '' }]
+    const completedAt = goal.completed === true && typeof goal.completedAt === 'string' && Number.isFinite(Date.parse(goal.completedAt)) ? goal.completedAt : undefined
+    return [{ id: goal.id.slice(0, 100), title, completed: goal.completed === true, createdAt: typeof goal.createdAt === 'string' ? goal.createdAt : '', ...(completedAt ? { completedAt } : {}) }]
   })
 }
 

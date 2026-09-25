@@ -5,6 +5,17 @@ import type { AvatarState } from './animator'
 import type { BadgeHandle } from './badge-hub'
 import { avatarConfigKey, resolveAvatarConfig, type AvatarConfig } from './config'
 import { hasWebGL } from './webgl-support'
+import stillUrl from './avatar-still.png'
+import { useLook, withLook } from './look'
+
+/**
+ * The default ClawMuse's idle bust, shown until the live badge draws its first
+ * frame: three.js loads lazily, and for those first seconds every avatar was
+ * an empty circle. Captured from the live badge (104 px, transparent).
+ * ponytail: a checked-in frame, so it goes stale if the mascot's look changes;
+ * re-capture it then (or render it at build time once there is a WebGL build step).
+ */
+const DEFAULT_KEY = avatarConfigKey(resolveAvatarConfig(undefined))
 
 export interface AvatarBadgeProps {
   config?: AvatarConfig
@@ -40,7 +51,8 @@ function observe(el: Element, fn: VisibilityListener): () => void {
 export function AvatarBadge({ config, state = 'idle', size = 40, talkLevel = 0, className }: AvatarBadgeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const handleRef = useRef<BadgeHandle | null>(null)
-  const resolved = useMemo(() => resolveAvatarConfig(config), [config])
+  const look = useLook()
+  const resolved = useMemo(() => resolveAvatarConfig(withLook(config, look)), [config, look])
   const configKey = avatarConfigKey(resolved)
   const [fallback, setFallback] = useState(() => !hasWebGL())
   const latest = useRef({ resolved, state, size, talkLevel })
@@ -103,10 +115,11 @@ export function AvatarBadge({ config, state = 'idle', size = 40, talkLevel = 0, 
   return (
     <canvas
       ref={canvasRef}
-      className={cn('block shrink-0', className)}
-      style={{ width: size, height: size }}
+      className={cn('avatar-badge block shrink-0', className)}
+      style={{ width: size, height: size, ...(configKey === DEFAULT_KEY ? { '--avatar-still': `url(${stillUrl})` } : {}) }}
       role="img"
       aria-label={resolved.name}
+      data-avatar-state={state}
     />
   )
 }

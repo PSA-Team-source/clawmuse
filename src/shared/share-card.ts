@@ -1,13 +1,21 @@
 /**
  * Share cards: a PNG of something ClawMuse did for the user (a Feed story, an
- * Idea, a chat answer), drawn locally by the main process. Nothing is uploaded.
+ * Idea, a chat answer, a Weekly Recap), drawn locally by the main process. Nothing is uploaded.
  *
  * This file is the trust boundary's rulebook — the renderer sends whatever the
  * model wrote, and main accepts it only through `parseShareCardInput`. Pure, so
  * it is tested without Electron.
  */
 
-export type ShareCardKind = 'feed' | 'idea' | 'answer'
+export type ShareCardKind = 'feed' | 'idea' | 'answer' | 'recap'
+
+const KINDS: readonly ShareCardKind[] = ['feed', 'idea', 'answer', 'recap']
+
+/** A counted number on a Weekly Recap card, e.g. 12 "messages sent". */
+export interface ShareCardStat {
+  value: number
+  label: string
+}
 
 export interface ShareCardInput {
   kind: ShareCardKind
@@ -20,6 +28,8 @@ export interface ShareCardInput {
   image?: string
   /** Byline, e.g. "The Verge · Reuters". */
   source?: string
+  /** A recap's numbers: whole, positive counts only. */
+  stats?: ShareCardStat[]
 }
 
 export type ShareCardRender =
@@ -36,6 +46,9 @@ export const SHARE_CARD_LIMITS = {
   imageUrl: 2048,
   /** Base64 length of an inline image (~6 MB decoded). */
   imageDataUri: 8 * 1024 * 1024,
+  stats: 6,
+  statLabel: 40,
+  statValue: 1_000_000,
 } as const
 
 /** What fits on the card before it stops reading like a card. */
@@ -68,18 +81,24 @@ export function parseShareCardInput(raw: unknown): ShareCardInput {
   if (!raw || typeof raw !== 'object') throw new Error('Nothing to share')
   const value = raw as Record<string, unknown>
   const kind = value.kind
-  if (kind !== 'feed' && kind !== 'idea' && kind !== 'answer') throw new Error('Unknown share card kind')
+  if (!KINDS.includes(kind as ShareCardKind)) throw new Error('Unknown share card kind')
   const title = clean(value.title, SHARE_CARD_LIMITS.title)
   const body = clean(value.body, SHARE_CARD_LIMITS.body) ?? ''
   if (!title && !body) throw new Error('Nothing to share')
   const image = typeof value.image === 'string' && isAllowedCardImage(value.image.trim()) ? value.image.trim() : undefined
-  const input: ShareCardInput = { kind, body }
+  const input: ShareCardInput = { kind: kind as ShareCardKind, body }
   if (title) input.title = title
   const emoji = clean(value.emoji, SHARE_CARD_LIMITS.emoji)
   if (emoji) input.emoji = emoji
   if (image) input.image = image
   const source = clean(value.source, SHARE_CARD_LIMITS.source)
   if (source) input.source = source
+  const stats = (Array.isArray(value.stats) ? value.stats : []).flatMap((stat): ShareCardStat[] => {
+    const { value: count, label } = (stat ?? {}) as Record<string, unknown>
+    const text = clean(label, SHARE_CARD_LIMITS.statLabel)
+    return text && Number.isInteger(count) && (count as number) > 0 && (count as number) <= SHARE_CARD_LIMITS.statValue ? [{ value: count as number, label: text }] : []
+  }).slice(0, SHARE_CARD_LIMITS.stats)
+  if (stats.length) input.stats = stats
   return input
 }
 
@@ -105,9 +124,44 @@ export function trimForCard(markdown: string, max: number): string {
   return out
 }
 
+/**
+ * A share clip: the card's avatar clip, made in the renderer (which has the
+ * WebGL avatar), registered with main so the card's Copy / Save / Share work
+ * on it. `cardId` is the card it was made from — a clip of a card main never
+ * drew is refused.
+ */
+export type ShareClipFormat = 'gif' | 'webm'
+export interface ShareClipInput {
+  cardId: string
+  format: ShareClipFormat
+  data: Uint8Array
+}
+export type ShareClipResult = { ok: true; id: string } | { ok: false; error: string }
+
+/** A 3–4 s clip is a few MB at most; anything near this is not one of ours. */
+export const SHARE_CLIP_MAX_BYTES = 40 * 1024 * 1024
+
+const CLIP_MAGIC: Record<ShareClipFormat, readonly number[]> = {
+  gif: [0x47, 0x49, 0x46, 0x38, 0x39, 0x61], // "GIF89a"
+  webm: [0x1a, 0x45, 0xdf, 0xa3], // EBML header
+}
+
+/** Validates a clip at the trust boundary: known format, bytes that are that format, bounded size. */
+export function parseShareClipInput(raw: unknown): ShareClipInput {
+  if (!raw || typeof raw !== 'object') throw new Error('Nothing to share')
+  const value = raw as Record<string, unknown>
+  const { cardId, format, data } = value
+  if (typeof cardId !== 'string' || !cardId || cardId.length > 64) throw new Error('Unknown card')
+  if (format !== 'gif' && format !== 'webm') throw new Error('Unknown clip format')
+  if (!(data instanceof Uint8Array) || data.length === 0) throw new Error('The clip is empty')
+  if (data.length > SHARE_CLIP_MAX_BYTES) throw new Error('The clip is too large')
+  if (!CLIP_MAGIC[format].every((byte, i) => data[i] === byte)) throw new Error('That is not a clip')
+  return { cardId, format, data }
+}
+
 /** A file name for the saved PNG: "ClawMuse - <title>.png", safe on every OS. */
 export function shareCardFileName(input: Pick<ShareCardInput, 'kind' | 'title'>): string {
-  const label = (input.title ?? { feed: 'Feed story', idea: 'Idea', answer: 'Answer' }[input.kind])
+  const label = (input.title ?? { feed: 'Feed story', idea: 'Idea', answer: 'Answer', recap: 'Weekly recap' }[input.kind])
     .replace(/[\\/:*?"<>|#%&{}$!'@+`=\u0000-\u001F]/g, '') // eslint-disable-line no-control-regex
     .replace(/\s+/g, ' ')
     .trim()

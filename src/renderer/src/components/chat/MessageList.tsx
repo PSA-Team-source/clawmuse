@@ -1,8 +1,9 @@
 import { memo, useEffect, useMemo, useRef } from 'react'
 import type { Message, ToolCall } from '@/types'
 import { cn } from '@/lib/cn'
+import { AvatarBadge, useTalkLevel, type AvatarConfig, type AvatarState } from '@/features/avatar'
 import { ToolGroup } from './ToolGroup'
-import { MessageBubble, type BubbleGrouping } from './MessageBubble'
+import { BUBBLE_FACE_CLASS, BUBBLE_FACE_SIZE, MessageBubble, type BubbleGrouping } from './MessageBubble'
 import { useReactionsStore } from '@/stores/reactions.store'
 import { StreamingText } from './StreamingText'
 import { ThinkingBlock } from './ThinkingBlock'
@@ -15,6 +16,29 @@ interface MessageListProps {
   isTyping?: boolean
   className?: string
   onReply?: (message: Message) => void
+  /** The agent's avatar: a face beside its replies that thinks, talks and works live. Pass a stable reference. */
+  avatar?: AvatarConfig
+}
+
+/**
+ * What the agent is doing right now, for the face beside the reply in progress:
+ * running a tool (a tool call of this turn has no result yet), talking (answer
+ * text is streaming), thinking (waiting, or only reasoning so far), else idle.
+ */
+export function liveAvatarState(messages: readonly Message[], busy: boolean, streamingText: string): AvatarState {
+  if (!busy) return 'idle'
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]!
+    if (message.role === 'user') break
+    if (message.role === 'tool' && message.tool_calls?.some((call) => call.status === 'running' || call.status === 'pending')) return 'working'
+  }
+  return streamingText ? 'talking' : 'thinking'
+}
+
+/** The face beside the reply in progress; the talk meter turns streamed characters into mouth movement. */
+function LiveFace({ config, state, text }: { config: AvatarConfig; state: AvatarState; text: string }) {
+  const talk = useTalkLevel(state, text)
+  return <AvatarBadge config={config} state={state} talkLevel={talk} size={BUBBLE_FACE_SIZE} className={BUBBLE_FACE_CLASS} />
 }
 
 /** How close to the bottom (px) counts as "still following the conversation". */
@@ -123,6 +147,7 @@ export const MessageList = memo(function MessageList({
   isTyping,
   className,
   onReply,
+  avatar,
 }: MessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const wasNearBottom = useRef(true)
@@ -145,6 +170,8 @@ export const MessageList = memo(function MessageList({
   // bubble has to appear for thinking alone — otherwise a long planning phase
   // looks like the agent is doing nothing.
   const showStreaming = !!streamingText || !!streamingThinking
+  const liveState = liveAvatarState(messages, showStreaming || !!isTyping, streamingText ?? '')
+  const liveFace = avatar && <LiveFace config={avatar} state={liveState} text={streamingText ?? ''} />
 
   return (
     <div ref={scrollRef} onScroll={handleScroll} className={cn('flex-1 overflow-y-auto px-2 pb-4 pt-3', className)}>
@@ -163,13 +190,16 @@ export const MessageList = memo(function MessageList({
             message={row.message}
             onReply={onReply}
             grouping={row.grouping}
+            avatar={avatar}
+            showFace={!row.grouping?.next}
             className={row.grouping?.prev ? 'mb-0 mt-1' : row.first ? 'mb-0 mt-0' : 'mb-0 mt-4'}
           />
         ),
       )}
 
       {showStreaming && (
-        <div className="my-1.5 flex px-6">
+        <div className={cn('my-1.5 flex px-6', liveFace && 'items-end gap-2')}>
+          {liveFace}
           <div className="muse-chat-bubble flex max-w-[84%] flex-col gap-1 rounded-bubble bg-bg-card px-3 py-2">
             {streamingThinking && <ThinkingBlock text={streamingThinking} streaming />}
             {streamingText && <StreamingText text={streamingText} />}
@@ -177,7 +207,12 @@ export const MessageList = memo(function MessageList({
         </div>
       )}
 
-      {!showStreaming && isTyping && <TypingIndicator />}
+      {!showStreaming && isTyping && (liveFace ? (
+        <div className="my-1 flex items-center gap-2 px-6">
+          {liveFace}
+          <TypingIndicator className="my-0 px-0" />
+        </div>
+      ) : <TypingIndicator />)}
     </div>
   )
 })

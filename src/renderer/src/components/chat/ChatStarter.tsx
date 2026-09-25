@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { DEVICE } from '@/lib/platform'
 import { Calendar03Icon, Clock01Icon, File01Icon, Target02Icon } from '@hugeicons/core-free-icons'
 import { Icon } from '@/components/primitives'
+import { AvatarCompanion, type AvatarConfig } from '@/features/avatar'
 import { prefillComposer } from '@/lib/composer-prefill'
 import { readGoals } from '@/lib/goals'
 import { useAgentIdentity } from '@/lib/identity'
@@ -19,7 +20,7 @@ const STARTERS = [
   { icon: Target02Icon, title: 'Help me with a goal', prompt: 'Help me set a clear goal. Ask me a few questions first, then suggest the first three steps.' },
 ] as const
 
-export function ChatStarter() {
+export function ChatStarter({ avatar }: { avatar?: AvatarConfig }) {
   const identity = useAgentIdentity().data
   const navigate = useNavigate()
   const name = identity?.name?.trim()
@@ -27,6 +28,7 @@ export function ChatStarter() {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6 px-6 text-center">
+      <AvatarCompanion config={avatar} className="-mb-3" />
       <div className="flex flex-col gap-1.5">
         <h2 className="text-title-2 font-semibold text-content-primary">{name ? `Hi, I'm ${name}.` : 'Hi there.'}</h2>
         <p className="text-body text-content-secondary">I work on your {DEVICE}. Ask me anything, or hand me something to do.</p>

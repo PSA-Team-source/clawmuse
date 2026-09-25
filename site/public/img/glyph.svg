@@ -1,13 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><g transform="translate(512 512) scale(0.86) translate(-512 -512)"><g transform="translate(34 -14)">
-    <g fill="#fff" transform="rotate(32 512 560)">
-      <!-- fixed jaw: its base runs into the palm, no notch -->
-      <path d="M352 736 C 318 500 356 292 492 140 C 452 280 456 440 530 626 Z"/>
-      <!-- moving jaw: the notch at its base is the hinge -->
-      <path d="M512 642 C 616 482 618 330 566 196 C 682 288 712 460 672 668 Z"/>
-      <!-- palm -->
-      <ellipse cx="516" cy="728" rx="170" ry="168"/>
-    </g>
-    <!-- the muse: a spark just beyond the tips -->
-    <path fill="#fff" d="M742 132 C 748 186 760 198 814 204 C 760 210 748 222 742 276 C 736 222 724 210 670 204 C 724 198 736 186 742 132 Z"/>
-  </g>
-</g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><g fill="#fff"><path d="M673.4 350.0A252 252 0 1 0 673.4 674.0A56 56 0 0 0 587.6 602.0A140 140 0 1 1 587.6 422.0A56 56 0 0 0 673.4 350.0Z"/><path d="M712.4 428.0C724.2 500.2 724.2 500.2 796.4 512.0C724.2 523.8 724.2 523.8 712.4 596.0C700.6 523.8 700.6 523.8 628.4 512.0C700.6 500.2 700.6 500.2 712.4 428.0Z"/></g></svg>

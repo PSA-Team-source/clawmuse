@@ -7,7 +7,7 @@
  */
 
 import type { AssistantJob, AssistantSettings, AssistantState } from './assistant'
-import type { ShareCardAction, ShareCardInput, ShareCardRender } from './share-card'
+import type { ShareCardAction, ShareCardInput, ShareCardRender, ShareClipInput, ShareClipResult } from './share-card'
 
 /** Keys allowed in the OS-encrypted credential store. Deliberately closed: the
  *  renderer must not be able to make the main process write arbitrary files. */
@@ -425,8 +425,14 @@ export interface IpcInvokeMap {
   'assistant:hide-idea': { req: string; res: AssistantState }
   'assistant:import-legacy': { req: unknown; res: AssistantState }
 
+  // ── ClawMuse's look (workspace avatar.json; the assistant edits it too) ────
+  'avatar:get': { req: void; res: Record<string, unknown> | null }
+  'avatar:set': { req: Record<string, unknown>; res: Record<string, unknown> | null }
+
   // ── Share cards (drawn locally by main; nothing is uploaded) ──────────────
   'share:render': { req: ShareCardInput; res: ShareCardRender }
+  /** Registers a clip made from a drawn card; the returned id works with copy / save / system. */
+  'share:clip': { req: ShareClipInput; res: ShareClipResult }
   'share:copy': { req: string; res: ShareCardAction }
   'share:save': { req: string; res: ShareCardAction }
   /** macOS share sheet; `{ ok: false }` elsewhere. */
@@ -514,6 +520,8 @@ export interface IpcEventMap {
   /** `clawmuse://…` opened from a browser, or a notification click. */
   deeplink: string
   'update-status': UpdateStatus
+  /** avatar.json changed (Settings or the assistant). */
+  'avatar-look': Record<string, unknown> | null
   /** Main asks the focused renderer to run a menu command (⌘N, ⌘K, …). */
   'menu-command': MenuCommand
   'system-theme-changed': boolean

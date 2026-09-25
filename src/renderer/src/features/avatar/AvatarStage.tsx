@@ -6,6 +6,7 @@ import { avatarConfigKey, resolveAvatarConfig, type AvatarConfig } from './confi
 import type { AvatarFraming } from './scene'
 import type { AvatarController, StageEngine, StageStats } from './stage-engine'
 import { hasWebGL } from './webgl-support'
+import { useLook, withLook } from './look'
 
 export interface AvatarStageProps {
   config?: AvatarConfig
@@ -46,7 +47,8 @@ export function AvatarStage({
 }: AvatarStageProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const engineRef = useRef<StageEngine | null>(null)
-  const resolved = useMemo(() => resolveAvatarConfig(config), [config])
+  const look = useLook()
+  const resolved = useMemo(() => resolveAvatarConfig(withLook(config, look)), [config, look])
   const configKey = avatarConfigKey(resolved)
   const [fallback, setFallback] = useState(() => !hasWebGL())
   // Bumped when a context is lost for good: remounting builds a fresh canvas.

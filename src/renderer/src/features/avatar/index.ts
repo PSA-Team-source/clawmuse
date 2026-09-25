@@ -10,11 +10,14 @@ import type { ClipOptions, PngOptions } from './exporter'
 
 export { AvatarStage, type AvatarStageProps } from './AvatarStage'
 export { AvatarBadge, type AvatarBadgeProps } from './AvatarBadge'
+export { AvatarCompanion } from './AvatarCompanion'
+export { useTalkLevel } from './useTalkLevel'
 export {
   AVATAR_ACCESSORIES,
   AVATAR_STYLES,
   CLAWMUSE_CORAL,
   DEFAULT_AVATAR_CONFIG,
+  avatarConfigForAgent,
   avatarConfigKey,
   resolveAvatarConfig,
   type AvatarAccessory,
@@ -36,7 +39,7 @@ export {
 } from './animator'
 export type { AvatarController, StageStats } from './stage-engine'
 export type { AvatarFraming } from './scene'
-export type { ClipOptions, PngOptions } from './exporter'
+export type { ClipOptions, ExportCompose, PngOptions } from './exporter'
 export { hasWebGL } from './webgl-support'
 
 /** PNG still of the avatar (transparent by default). */

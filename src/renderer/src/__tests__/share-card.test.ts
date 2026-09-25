@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseShareCardInput, shareCardFileName, trimForCard } from '@shared/share-card'
+import { parseShareCardInput, parseShareClipInput, SHARE_CLIP_MAX_BYTES, shareCardFileName, trimForCard } from '@shared/share-card'
 import { shareCardHtml } from '../../../main/services/share-card-html'
 
 describe('share card input (trust boundary)', () => {
@@ -51,5 +51,19 @@ describe('share card input (trust boundary)', () => {
   it('names the saved file safely', () => {
     expect(shareCardFileName({ kind: 'feed', title: 'AI: what/next? <now>' })).toBe('ClawMuse - AI whatnext now.png')
     expect(shareCardFileName({ kind: 'answer' })).toBe('ClawMuse - Answer.png')
+  })
+})
+
+describe('share clip input (trust boundary)', () => {
+  const gif = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 1, 2])
+  const webm = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0, 0])
+  it('accepts a GIF or WebM of a known card and nothing else', () => {
+    expect(parseShareClipInput({ cardId: 'c1', format: 'gif', data: gif }).format).toBe('gif')
+    expect(parseShareClipInput({ cardId: 'c1', format: 'webm', data: webm }).format).toBe('webm')
+    expect(() => parseShareClipInput({ cardId: 'c1', format: 'gif', data: webm })).toThrow('not a clip')
+    expect(() => parseShareClipInput({ cardId: 'c1', format: 'png', data: gif })).toThrow('format')
+    expect(() => parseShareClipInput({ cardId: '', format: 'gif', data: gif })).toThrow('card')
+    expect(() => parseShareClipInput({ cardId: 'c1', format: 'gif', data: 'R0lGODlh' })).toThrow('empty')
+    expect(() => parseShareClipInput({ cardId: 'c1', format: 'gif', data: new Uint8Array(SHARE_CLIP_MAX_BYTES + 1) })).toThrow('too large')
   })
 })

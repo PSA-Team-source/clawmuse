@@ -4,7 +4,16 @@ import { pathToFileURL } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import { BrowserWindow, ShareMenu, app, clipboard, dialog, nativeImage, net, session } from 'electron'
 import log from 'electron-log/main.js'
-import { parseShareCardInput, shareCardFileName, type ShareCardAction, type ShareCardInput, type ShareCardRender } from '@shared/share-card'
+import {
+  parseShareCardInput,
+  parseShareClipInput,
+  shareCardFileName,
+  type ShareCardAction,
+  type ShareCardInput,
+  type ShareCardRender,
+  type ShareClipFormat,
+  type ShareClipResult,
+} from '@shared/share-card'
 import { CARD_WIDTH, shareCardHtml } from './share-card-html.js'
 
 /**
@@ -25,7 +34,20 @@ const KEEP = 6
 const PARTITION = 'clawmuse-share-card'
 const RASTER = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
 
-const rendered = new Map<string, { png: Buffer; fileName: string }>()
+type Kept = { bytes: Buffer; fileName: string; format: 'png' | ShareClipFormat }
+const rendered = new Map<string, Kept>()
+const FILTERS: Record<Kept['format'], Electron.FileFilter> = {
+  png: { name: 'PNG image', extensions: ['png'] },
+  gif: { name: 'GIF animation', extensions: ['gif'] },
+  webm: { name: 'WebM video', extensions: ['webm'] },
+}
+
+function keep(entry: Kept): string {
+  const id = randomUUID()
+  rendered.set(id, entry)
+  while (rendered.size > KEEP) rendered.delete(rendered.keys().next().value!)
+  return id
+}
 let queue: Promise<unknown> = Promise.resolve()
 let sessionLocked = false
 
@@ -156,9 +178,7 @@ export function renderShareCard(raw: unknown): Promise<ShareCardRender> {
     try {
       const card = parseShareCardInput(raw)
       const png = await withTimeout(draw(card), RENDER_TIMEOUT_MS, 'Drawing the card')
-      const id = randomUUID()
-      rendered.set(id, { png, fileName: shareCardFileName(card) })
-      while (rendered.size > KEEP) rendered.delete(rendered.keys().next().value!)
+      const id = keep({ bytes: png, fileName: shareCardFileName(card), format: 'png' })
       const size = nativeImage.createFromBuffer(png).getSize()
       return { ok: true, id, dataUrl: `data:image/png;base64,${png.toString('base64')}`, width: size.width, height: size.height }
     } catch (error) {
@@ -171,49 +191,88 @@ export function renderShareCard(raw: unknown): Promise<ShareCardRender> {
   return next
 }
 
-function take(id: unknown): { png: Buffer; fileName: string } | null {
+/**
+ * Keeps a clip the renderer made from a card drawn here, under the card's
+ * file name, so Copy / Save / Share treat it like the card itself.
+ */
+export function registerShareClip(raw: unknown): ShareClipResult {
+  try {
+    const clip = parseShareClipInput(raw)
+    const card = rendered.get(clip.cardId)
+    if (!card || card.format !== 'png') return { ok: false, error: GONE.error }
+    const fileName = card.fileName.replace(/\.png$/i, `.${clip.format}`)
+    return { ok: true, id: keep({ bytes: Buffer.from(clip.data), fileName, format: clip.format }) }
+  } catch (error) {
+    log.warn('[share-card] clip refused:', (error as Error).message)
+    return { ok: false, error: (error as Error).message }
+  }
+}
+
+function take(id: unknown): Kept | null {
   return typeof id === 'string' ? rendered.get(id) ?? null : null
 }
 
-const GONE: ShareCardAction = { ok: false, error: 'That card is no longer available. Make it again.' }
+const GONE: ShareCardAction & { ok: false } = { ok: false, error: 'That card is no longer available. Make it again.' }
 
-export function copyShareCard(id: unknown): ShareCardAction {
+/** The file behind a share, in its own folder under the work dir (the share sheet and the clipboard hand out paths). */
+async function shareFile(id: string, card: Kept): Promise<string> {
+  // ponytail: shared files stay in the temp folder until the OS clears it; the
+  // share sheet and a pasted file are read after this returns, so they cannot
+  // be deleted here.
+  const dir = join(workDir(), id)
+  await mkdir(dir, { recursive: true })
+  const path = join(dir, card.fileName)
+  await writeFile(path, card.bytes)
+  return path
+}
+
+/**
+ * A card copies as an image. A GIF clip copies as the file (macOS
+ * `public.file-url`, what Finder's Copy puts there): pasted into Messages,
+ * Mail, Slack or Discord it arrives as the animated GIF, where image data
+ * would be flattened to one still frame. Elsewhere there is no API for a file
+ * on the clipboard, so the dialog offers Save… instead.
+ */
+export async function copyShareCard(id: unknown): Promise<ShareCardAction> {
   const card = take(id)
   if (!card) return GONE
-  clipboard.writeImage(nativeImage.createFromBuffer(card.png))
+  if (card.format === 'png') {
+    clipboard.writeImage(nativeImage.createFromBuffer(card.bytes))
+    return { ok: true }
+  }
+  if (card.format !== 'gif' || process.platform !== 'darwin') return { ok: false, error: 'Copying a clip is not available on this computer. Use Save… instead.' }
+  const path = await shareFile(String(id), card)
+  clipboard.writeBuffer('public.file-url', Buffer.from(pathToFileURL(path).href))
   return { ok: true }
 }
 
 export async function saveShareCard(win: BrowserWindow | null, id: unknown): Promise<ShareCardAction> {
   const card = take(id)
   if (!card) return GONE
+  const filter = FILTERS[card.format]
   const options: Electron.SaveDialogOptions = {
-    title: 'Save image',
+    title: card.format === 'png' ? 'Save image' : 'Save clip',
     defaultPath: join(app.getPath('downloads'), card.fileName),
-    filters: [{ name: 'PNG image', extensions: ['png'] }],
+    filters: [filter],
   }
   const result = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options)
   if (result.canceled || !result.filePath) return { ok: false, error: 'Canceled', canceled: true }
-  const path = /\.png$/i.test(result.filePath) ? result.filePath : `${result.filePath}.png`
+  const ext = `.${filter.extensions[0]}`
+  const path = result.filePath.toLowerCase().endsWith(ext) ? result.filePath : `${result.filePath}${ext}`
   try {
-    await writeFile(path, card.png)
+    await writeFile(path, card.bytes)
   } catch (error) {
     return { ok: false, error: (error as Error).message }
   }
   return { ok: true, path }
 }
 
-/** macOS share sheet (AirDrop, Messages, Mail, …) with the PNG as a file. */
+/** macOS share sheet (AirDrop, Messages, Mail, …) with the card or clip as a file. */
 export async function shareCardViaSystem(win: BrowserWindow | null, id: unknown): Promise<ShareCardAction> {
   if (process.platform !== 'darwin') return { ok: false, error: 'Sharing is not available on this computer' }
   const card = take(id)
   if (!card) return GONE
-  // ponytail: shared files stay in the temp folder until the OS clears it; the
-  // share sheet reads them after popup() returns, so they cannot be deleted here.
-  const dir = join(workDir(), String(id))
-  await mkdir(dir, { recursive: true })
-  const path = join(dir, card.fileName)
-  await writeFile(path, card.png)
+  const path = await shareFile(String(id), card)
   new ShareMenu({ filePaths: [path] }).popup(win ? { window: win } : {})
   return { ok: true }
 }

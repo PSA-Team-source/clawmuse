@@ -52,8 +52,9 @@ import { getKeyMonitorStatus, onKeyMonitorStatus, syncKeyMonitor } from '../serv
 import { transcribeDictation } from '../services/local-runtime/dictation.js'
 import { saveIssueReport } from '../services/issue-report.js'
 import { removeClawMuse } from '../services/remove-app.js'
+import { ASSISTANT_JOBS, type AssistantJob } from '@shared/assistant'
 import { getAssistantState, hideIdea, importLegacy, markFeedUnit, runAssistantJob, setAssistantSettings, setFeedPrompt, stopAssistantJob, syncAssistantContext } from '../services/assistant.js'
-import { copyShareCard, renderShareCard, saveShareCard, shareCardViaSystem } from '../services/share-card.js'
+import { copyShareCard, registerShareClip, renderShareCard, saveShareCard, shareCardViaSystem } from '../services/share-card.js'
 import { exportAgentData } from '../services/local-runtime/data-export.js'
 import { setAgentIdentity } from '../services/local-runtime/agent-identity.js'
 import { connectWallet, disconnectWallet, walletCardFields, walletCards, walletConfig, walletStatus } from '../services/local-runtime/wallet.js'
@@ -74,6 +75,7 @@ import { checkForUpdates, getUpdateStatus, installUpdate } from '../services/upd
 import { openControlUi } from '../windows/control-ui.js'
 import { createMainWindow, openSettingsWindow } from '../windows/main-window.js'
 import { isQuickChatWindow, showQuickChat } from '../windows/quick-chat.js'
+import { getAvatarLook, setAvatarLook } from '../services/avatar-look.js'
 
 /** The window that sent the current IPC message, or null if it has gone away. */
 function senderWindow(event: Electron.IpcMainInvokeEvent): BrowserWindow | null {
@@ -136,8 +138,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('app:save-issue-report', (_e, description: unknown) => saveIssueReport(description))
   // ── Built-in assistant ────────────────────────────────────────────────────
   const assistantJob = (job: unknown) => {
-    if (job !== 'feed' && job !== 'ideas' && job !== 'checkin') throw new Error('Unknown assistant job')
-    return job
+    if (!ASSISTANT_JOBS.includes(job as AssistantJob)) throw new Error('Unknown assistant job')
+    return job as AssistantJob
   }
   ipcMain.handle('assistant:state', () => getAssistantState())
   // Not awaited: the run reports progress through `assistant-state`, and the
@@ -152,7 +154,10 @@ export function registerIpcHandlers(): void {
   ipcMain.on('assistant:context', (_e, context: unknown) => syncAssistantContext(context))
   // ── Share cards ───────────────────────────────────────────────────────────
   // Input is validated in renderShareCard (parseShareCardInput); ids are opaque.
+  ipcMain.handle('avatar:get', () => getAvatarLook())
+  ipcMain.handle('avatar:set', (_e, look: unknown) => setAvatarLook(look))
   ipcMain.handle('share:render', (_e, input: unknown) => renderShareCard(input))
+  ipcMain.handle('share:clip', (_e, input: unknown) => registerShareClip(input))
   ipcMain.handle('share:copy', (_e, id: unknown) => copyShareCard(id))
   ipcMain.handle('share:save', (event, id: unknown) => saveShareCard(senderWindow(event), id))
   ipcMain.handle('share:system', (event, id: unknown) => shareCardViaSystem(senderWindow(event), id))

@@ -39,7 +39,8 @@ BG="$(magick "$ICON_SRC" -format '%[pixel:p{5,5}]' info:)"
 # Geometry of the glyph inside icon.png ("478x637+322+174"), so the layer built
 # for the .icon package below reproduces mobile's framing — including the slight
 # downward offset — instead of inventing its own.
-GLYPH_GEOM="$(magick "$ICON_SRC" -bordercolor "$BG" -fuzz 5% -trim -format '%wx%h%X%Y' info:)"
+# Measured off the transparent glyph.png, which carries the glyph alone.
+GLYPH_GEOM="$(magick "$GLYPH_SRC" -trim -format '%wx%h%X%Y' info:)"
 GLYPH_H="${GLYPH_GEOM%%+*}"; GLYPH_H="${GLYPH_H#*x}"
 GLYPH_OFF="${GLYPH_GEOM#*+}"; GLYPH_X="${GLYPH_OFF%%+*}"; GLYPH_Y="${GLYPH_OFF#*+}"
 

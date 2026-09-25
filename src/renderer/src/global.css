@@ -18,7 +18,6 @@
 /* Muse status Identity tab (HatchStatusIdentityTab / HatchIdentitySpecialFiles): 22px squircle cards, a 20/24 emoji disc,
    and the SOUL / MEMORY file cards over their mesh-gradient colours (static — Muse's own fallback when the shader is off). */
 .muse-identity-card, .muse-file-card { border-radius: 22px; }
-.muse-identity-emoji { font-size: 20px; line-height: 24px; }
 .muse-file-card-kicker { font-family: var(--font-mono); font-size: 10px; line-height: 12px; text-transform: uppercase; color: rgb(255 255 255 / 0.7); }
 .muse-file-card-date { position: relative; font-family: var(--font-mono); font-size: 14px; line-height: 16px; color: rgb(255 255 255 / 0.7); }
 .muse-file-card-date svg { color: rgb(255 255 255 / 0.5); }
@@ -733,4 +732,9 @@
   .streaming-caret > *:last-child::after {
     animation: fb-caret 1s step-end infinite;
   }
+}
+
+/* AvatarBadge: the bundled still until the live renderer's first frame. */
+.avatar-badge:not([data-drawn]) {
+  background: var(--avatar-still, none) center / contain no-repeat;
 }

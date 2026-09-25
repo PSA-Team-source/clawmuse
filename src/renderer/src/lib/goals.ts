@@ -6,6 +6,15 @@ export interface Goal {
   title: string
   completed: boolean
   createdAt: string
+  /** When it was ticked off — what the Weekly Recap counts. */
+  completedAt?: string
+}
+
+/** The goal ticked on or off, stamping when it was completed. */
+export function withCompleted(goal: Goal, completed: boolean, now = new Date()): Goal {
+  if (goal.completed === completed) return goal
+  const { completedAt: _completedAt, ...rest } = goal
+  return completed ? { ...rest, completed, completedAt: now.toISOString() } : { ...rest, completed }
 }
 
 export function readGoals(): Goal[] {

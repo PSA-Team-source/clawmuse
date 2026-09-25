@@ -1,10 +1,12 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { SettingsButton, SettingsGroup } from '@/components/settings'
 import { TextField, useToast } from '@/components/patterns'
 import { Dialog } from '@/components/primitives'
 import { gatewayWS } from '@/services/gateway-ws.service'
 import { squareAvatar } from '@/lib/avatar'
+import { AvatarBadge } from '@/features/avatar'
+import { LookEditor } from '@/features/avatar/LookEditor'
 import { agentIdentityKey, ownerProfileKey, useAgentAvatar, useAgentIdentity, useOwnerAvatarUrl, useOwnerProfile } from '@/lib/identity'
 
 interface EditState { kind: 'owner' | 'agent'; name: string; image: string | null; file: { mime: 'image/png'; base64: string; dataUrl: string } | null }
@@ -21,6 +23,8 @@ export function IdentityCards() {
   const agent = useAgentIdentity()
   const ownerAvatar = useOwnerAvatarUrl(owner.data)
   const agentImage = useAgentAvatar(agent.data)
+  const agentName = agent.data?.name?.trim()
+  const agentConfig = useMemo(() => ({ name: agentName }), [agentName])
   const [edit, setEdit] = useState<EditState | null>(null)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -58,9 +62,10 @@ export function IdentityCards() {
     }
   }
 
-  const circle = (src: string | null, fallback?: string) => src
+  // The agent without a photo is the ClawMuse avatar (not its identity emoji); the owner without one shows nothing.
+  const circle = (src: string | null, agentFace?: boolean) => src
     ? <img src={src} alt="" className="size-10 shrink-0 rounded-full object-cover" />
-    : fallback ? <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full bg-fill-strong text-title-3">{fallback}</span> : null
+    : agentFace ? <AvatarBadge size={40} config={agentConfig} className="rounded-full bg-fill-strong" /> : null
 
   return (
     <>
@@ -77,7 +82,7 @@ export function IdentityCards() {
         )}
         {agent.data && (
           <div className="settings-row flex w-full items-center gap-3">
-            {circle(agentImage, agent.data.emoji)}
+            {circle(agentImage, true)}
             <div className="min-w-0 flex-1">
               <p className="truncate text-body text-content-primary">{agent.data.name || 'Your agent'}</p>
               <p className="text-caption text-content-secondary">Your agent's name and avatar</p>
@@ -91,11 +96,12 @@ export function IdentityCards() {
         {edit && (
           <form onSubmit={(event) => { event.preventDefault(); void save() }} className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
-              {circle(edit.image, edit.kind === 'agent' ? agent.data?.emoji : undefined)}
+              {circle(edit.image, edit.kind === 'agent')}
               <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => void pick(event.target.files?.[0])} />
               <SettingsButton onClick={() => fileRef.current?.click()}>{edit.image ? 'Change photo' : 'Add photo'}</SettingsButton>
             </div>
             <TextField label="Name" value={edit.name} onChange={(name) => setEdit({ ...edit, name: name.slice(0, 64) })} />
+            {edit.kind === 'agent' && !edit.image && <LookEditor />}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setEdit(null)} className="h-8 rounded-full px-4 text-body-sm font-medium hover:bg-fill-strong">Cancel</button>
               <button type="submit" disabled={saving} className="h-8 rounded-full bg-muse-blue px-4 text-body-sm font-medium text-white disabled:opacity-45">{saving ? 'Saving…' : 'Save'}</button>

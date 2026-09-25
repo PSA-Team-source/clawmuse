@@ -17,7 +17,7 @@ import { CARD_BODY_CHARS, isAllowedCardImage, trimForCard, type ShareCardInput }
 
 export const CARD_WIDTH = 600
 
-const KIND_LABEL: Record<ShareCardInput['kind'], string> = { feed: 'From my Feed', idea: 'Idea', answer: 'Answer' }
+const KIND_LABEL: Record<ShareCardInput['kind'], string> = { feed: 'From my Feed', idea: 'Idea', answer: 'Answer', recap: 'My week' }
 
 const escapeHtml = (text: string): string =>
   text.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!)
@@ -69,6 +69,10 @@ h1{margin:0 0 10px;font-size:25px;line-height:1.25;font-weight:700;letter-spacin
 .body pre code{background:none;padding:0}
 .body table{border-collapse:collapse;margin:0 0 10px;font-size:15px}.body th,.body td{border:1px solid #e5e5ea;padding:4px 8px;text-align:left}
 .body hr{border:0;border-top:1px solid #e5e5ea;margin:14px 0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:4px 0 18px}
+.stat{background:#fff5f3;border-radius:14px;padding:12px 12px 10px}
+.stat b{display:block;font-size:28px;line-height:1.1;font-weight:750;letter-spacing:-.02em;color:#d93a2f;font-variant-numeric:tabular-nums}
+.stat span{display:block;margin-top:2px;font-size:13px;line-height:1.3;color:#48484a}
 .source{margin-top:16px;color:#8e8e93;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .foot{margin-top:16px;text-align:center;color:rgba(255,255,255,.88);font-size:13px;font-weight:500;letter-spacing:.01em}
 .foot b{font-weight:700;color:#fff}
@@ -77,6 +81,7 @@ h1{margin:0 0 10px;font-size:25px;line-height:1.25;font-weight:700;letter-spacin
 ${card.image ? `<img class="hero" src="${escapeHtml(card.image)}" alt="">` : ''}
 ${card.emoji ? `<div class="emoji">${escapeHtml(card.emoji)}</div>` : ''}
 ${title ? `<h1>${title}</h1>` : ''}
+${card.stats?.length ? `<div class="stats">${card.stats.map((stat) => `<div class="stat"><b>${escapeHtml(stat.value.toLocaleString('en-US'))}</b><span>${escapeHtml(stat.label)}</span></div>`).join('')}</div>` : ''}
 ${body ? `<div class="body">${markdownHtml(body)}</div>` : ''}
 ${card.source ? `<div class="source">${escapeHtml(card.source)}</div>` : ''}
 </div><div class="foot">Made with <b>ClawMuse</b> · clawmuse.app</div></div></body></html>`

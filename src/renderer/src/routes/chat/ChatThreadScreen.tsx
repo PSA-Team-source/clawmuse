@@ -2,7 +2,8 @@ import { AgentProfile } from '@/components/status/AgentProfile'
 import { onComposerPrefill, PENDING_PROMPT_KEY } from '@/lib/composer-prefill'
 import { ChatStarter } from '@/components/chat/ChatStarter'
 import { StatusPanel } from '@/shell/StatusPanel'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { avatarConfigForAgent } from '@/features/avatar'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   BubbleChatIcon,
@@ -116,6 +117,14 @@ export default function ChatThreadScreen({ sessionId: embeddedSessionId }: { ses
     : skillId
       ? undefined
       : bots.find((entry) => entry.isDefault)
+  // Stable per agent: MessageBubble is memoised on it.
+  const agentId = bot?.id ?? skillId
+  const agentName = bot?.name
+  const agentIsDefault = bot?.isDefault ?? false
+  const avatar = useMemo(
+    () => avatarConfigForAgent(agentId ? { id: agentId, name: agentName, isDefault: agentIsDefault } : null),
+    [agentId, agentName, agentIsDefault],
+  )
   // Registers this as the "current" session so the ⌘. abort menu command (and
   // any other global chrome) targets the thread actually on screen.
   useEffect(() => {
@@ -358,7 +367,7 @@ export default function ChatThreadScreen({ sessionId: embeddedSessionId }: { ses
         <>
             {messages.length === 0 && !isTyping && !streamingText ? (
               <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto pt-18">
-                <ChatStarter />
+                <ChatStarter avatar={avatar} />
               </div>
             ) : (
               <MessageList
@@ -367,6 +376,7 @@ export default function ChatThreadScreen({ sessionId: embeddedSessionId }: { ses
                 streamingThinking={streamingThinking}
                 isTyping={isTyping}
                 onReply={quoteReply}
+                avatar={avatar}
                 className="min-h-0 pt-18 [&>*]:mx-auto [&>*]:max-w-3xl"
               />
             )}

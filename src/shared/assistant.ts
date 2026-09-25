@@ -1,5 +1,7 @@
+import type { WeeklyRecap } from './recap'
+
 /**
- * ClawMuse's built-in assistant: Feed, Ideas and check-ins.
+ * ClawMuse's built-in assistant: Feed, Ideas, check-ins and the Weekly Recap.
  *
  * These are app functions, not chats. The main process runs them with
  * one-shot model calls (`openclaw infer model run`: no session, no tools, no
@@ -16,6 +18,8 @@ export interface Goal {
   title: string
   completed: boolean
   createdAt: string
+  /** When it was ticked off; goals completed before this was recorded have none. */
+  completedAt?: string
 }
 
 export interface NewsItem {
@@ -86,9 +90,13 @@ export interface AssistantSettings {
   feedTime: string
   /** Refresh Ideas once a day. */
   dailyIdeas: boolean
+  /** Write a Weekly Recap on Sunday evening. */
+  weeklyRecap: boolean
 }
 
-export type AssistantJob = 'feed' | 'ideas' | 'checkin'
+export type AssistantJob = 'feed' | 'ideas' | 'checkin' | 'recap'
+
+export const ASSISTANT_JOBS: readonly AssistantJob[] = ['feed', 'ideas', 'checkin', 'recap']
 
 export interface JobStatus {
   /** Set while the job runs; the phase the UI shows. */
@@ -114,6 +122,8 @@ export interface AssistantState {
   checkIns: CheckIn[]
   /** A check-in written but not yet delivered (the gateway was down); retried, then dropped. */
   pendingCheckIn: CheckIn | null
+  /** Weekly Recaps, newest first. */
+  recaps: WeeklyRecap[]
   jobs: Record<AssistantJob, JobStatus>
   /** False when the local agent CLI is not installed — nothing can run. */
   available: boolean
@@ -129,6 +139,7 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   dailyFeed: true,
   feedTime: '07:00',
   dailyIdeas: true,
+  weeklyRecap: true,
 }
 
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/
@@ -136,7 +147,7 @@ const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/
 /** Settings as stored or sent: anything malformed falls back to its default. */
 export function parseAssistantSettings(value: unknown): AssistantSettings {
   const raw = (value && typeof value === 'object' ? value : {}) as Partial<Record<keyof AssistantSettings, unknown>>
-  const bool = (key: 'checkIns' | 'dailyFeed' | 'dailyIdeas') => (typeof raw[key] === 'boolean' ? raw[key] as boolean : DEFAULT_ASSISTANT_SETTINGS[key])
+  const bool = (key: 'checkIns' | 'dailyFeed' | 'dailyIdeas' | 'weeklyRecap') => (typeof raw[key] === 'boolean' ? raw[key] as boolean : DEFAULT_ASSISTANT_SETTINGS[key])
   const time = (key: 'activeStart' | 'activeEnd' | 'feedTime') => (typeof raw[key] === 'string' && HHMM.test(raw[key] as string) ? raw[key] as string : DEFAULT_ASSISTANT_SETTINGS[key])
   return {
     checkIns: bool('checkIns'),
@@ -146,6 +157,7 @@ export function parseAssistantSettings(value: unknown): AssistantSettings {
     dailyFeed: bool('dailyFeed'),
     feedTime: time('feedTime'),
     dailyIdeas: bool('dailyIdeas'),
+    weeklyRecap: bool('weeklyRecap'),
   }
 }
 

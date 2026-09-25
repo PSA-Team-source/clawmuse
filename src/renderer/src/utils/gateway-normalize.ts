@@ -193,7 +193,7 @@ export function normalizeHistory(raw: unknown, sessionId: string): Message[] {
   }
   const joined = new Set<string>()
 
-  return entries
+  return dropTurnRecaps(entries
     .flatMap((entry, index): Message[] => {
       const stamp = typeof entry.timestamp === 'number' ? new Date(entry.timestamp).toISOString() : new Date().toISOString()
       const meta = (entry.__openclaw ?? {}) as { id?: unknown }
@@ -217,7 +217,7 @@ export function normalizeHistory(raw: unknown, sessionId: string): Message[] {
       // A tool step with no words of its own is only its tool row.
       if (toolBlocks.length && entry.role === 'assistant' && !text.trim()) return tools
       return [...normalizeEntry(entry, index), ...tools]
-    })
+    }))
 
   function normalizeEntry(entry: Record<string, unknown>, index: number): Message[] {
     return [entry].map(() => {
@@ -267,4 +267,27 @@ export function normalizeHistory(raw: unknown, sessionId: string): Message[] {
       } satisfies Message
     })
   }
+}
+
+const squash = (text: string) => text.replace(/\s+/g, ' ').trim()
+
+/**
+ * A tool-using turn under the Claude Code runtime ends with one more assistant
+ * message that repeats every step's text, joined — so the reply showed twice
+ * (steps as bubbles, then all of it again). Drop a message that is exactly the
+ * earlier steps of the same turn, in order; anything with new words stays.
+ */
+export function dropTurnRecaps(messages: Message[]): Message[] {
+  const out: Message[] = []
+  let steps: string[] = []
+  for (const message of messages) {
+    if (message.role === 'user') steps = []
+    if (message.role === 'assistant' && message.content.trim()) {
+      const text = squash(message.content)
+      if (steps.length >= 2 && text === squash(steps.join(' '))) continue
+      steps.push(message.content)
+    }
+    out.push(message)
+  }
+  return out
 }

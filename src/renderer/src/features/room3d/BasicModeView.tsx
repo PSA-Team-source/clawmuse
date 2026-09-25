@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Cancel01Icon } from '@hugeicons/core-free-icons'
 import { IconButton } from '@/components/brand'
 import { EmptyState } from '@/components/patterns'
+import { AvatarBadge } from '@/features/avatar'
 import { CLAWMUSE_SKILL_ID, roomToCharacters, useRoomStore } from '@/stores/room.store'
 import type { GameCharacter } from '@/types'
 import { cn } from '@/lib/cn'
@@ -95,7 +96,7 @@ export function BasicModeView({
     return (
       <div className="flex h-full items-center justify-center" style={{ paddingTop: topInset }}>
         <EmptyState
-          icon={<span className="text-4xl">🦞</span>}
+          icon={<AvatarBadge size={56} />}
           title="No agents yet"
           description="Add an agent to get started."
         />

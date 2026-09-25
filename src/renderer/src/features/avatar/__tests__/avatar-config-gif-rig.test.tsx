@@ -3,7 +3,7 @@ import { render } from '@testing-library/react'
 import * as THREE from 'three'
 import { AVATAR_STATES, AvatarAnimator } from '../animator'
 import { avatarConfigKey, resolveAvatarConfig, toHex } from '../config'
-import { encodeGif } from '../gif'
+import { encodeGif, encodeGifAsync } from '../gif'
 import { createAvatarRig } from '../rig'
 import { AvatarBadge } from '../AvatarBadge'
 import { AvatarStage } from '../AvatarStage'
@@ -148,6 +148,44 @@ function decodeFirstFrame(bytes: Uint8Array) {
   return { w, h, table, transparentIndex, frames, indices: first! }
 }
 
+/** Every frame composed onto the canvas (disposal 1: frames draw over the last), plus each frame's rectangle. */
+function decodeAllFrames(bytes: Uint8Array) {
+  const w = bytes[6]! | (bytes[7]! << 8)
+  const h = bytes[8]! | (bytes[9]! << 8)
+  const tableSize = 2 << (bytes[10]! & 7)
+  let p = 13
+  const table = bytes.slice(p, p + tableSize * 3)
+  p += tableSize * 3
+  const canvas = new Uint8Array(w * h)
+  const canvases: Uint8Array[] = []
+  const rects: { x: number; y: number; w: number; h: number }[] = []
+  const u16 = (at: number) => bytes[at]! | (bytes[at + 1]! << 8)
+  while (p < bytes.length) {
+    const b = bytes[p++]!
+    if (b === 0x3b) break
+    if (b === 0x21) {
+      p++
+      while (bytes[p]) p += bytes[p]! + 1
+      p++
+      continue
+    }
+    const rect = { x: u16(p), y: u16(p + 2), w: u16(p + 4), h: u16(p + 6) }
+    p += 9
+    const min = bytes[p++]!
+    const data: number[] = []
+    while (bytes[p]) {
+      const n = bytes[p++]!
+      for (let i = 0; i < n; i++) data.push(bytes[p++]!)
+    }
+    p++
+    const pixels = lzwDecode(data, min, rect.w * rect.h)
+    for (let y = 0; y < rect.h; y++) canvas.set(pixels.subarray(y * rect.w, (y + 1) * rect.w), (rect.y + y) * w + rect.x)
+    rects.push(rect)
+    canvases.push(canvas.slice())
+  }
+  return { rects, canvases, table }
+}
+
 function lzwDecode(data: number[], min: number, count: number): Uint8Array {
   const out = new Uint8Array(count)
   const clear = 1 << min
@@ -218,6 +256,35 @@ describe('encodeGif', () => {
       for (let c = 0; c < 3; c++) maxErr = Math.max(maxErr, Math.abs(dec.table[idx * 3 + c]! - src[p * 4 + c]!))
     }
     expect(maxErr).toBeLessThan(24)
+  })
+
+  it('stores only what changed in opaque clips, and replays to the same frames (sync and async alike)', async () => {
+    const w = 60
+    const h = 40
+    // A still coral card with a small square moving across it.
+    const frames = [0, 1, 2, 3].map((f) => {
+      const data = new Uint8ClampedArray(w * h * 4)
+      for (let p = 0; p < w * h; p++) {
+        const x = p % w
+        const y = Math.floor(p / w)
+        const box = x >= 5 + f * 6 && x < 12 + f * 6 && y >= 10 && y < 17
+        data.set(box ? [0x20, 0x30, 0xe0, 255] : [0xff, 0x5a, 0x4e, (x * y) % 7 === 0 ? 200 : 255], p * 4)
+      }
+      return { data }
+    })
+    const opts = { width: w, height: h, frameMs: 1000 / 15, transparent: false }
+    const gif = encodeGif(frames, opts)
+    expect(await encodeGifAsync(frames, opts)).toEqual(gif)
+    const { rects, canvases, table } = decodeAllFrames(gif)
+    expect(rects[0]).toEqual({ x: 0, y: 0, w, h })
+    // Frame 1 covers only the square's old and new place: x 5..17, y 10..16.
+    expect(rects[1]).toEqual({ x: 5, y: 10, w: 13, h: 7 })
+    for (let f = 0; f < frames.length; f++) {
+      for (let p = 0; p < w * h; p++) {
+        const idx = canvases[f]![p]!
+        for (let c = 0; c < 3; c++) expect(Math.abs(table[idx * 3 + c]! - frames[f]!.data[p * 4 + c]!)).toBeLessThan(12)
+      }
+    }
   })
 
   it('rejects bad input', () => {

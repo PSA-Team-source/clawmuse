@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Briefcase01Icon, Dollar01Icon, FavouriteIcon, LaptopIcon, PaintBoardIcon, UserGroupIcon, Book02Icon, Rocket01Icon } from '@hugeicons/core-free-icons'
-import { ClawMuseLogo, GhostButton, GradientButton } from '@/components/brand'
+import { GhostButton, GradientButton } from '@/components/brand'
+import { AvatarCompanion } from '@/features/avatar'
 import { Icon } from '@/components/primitives'
 import { cn } from '@/lib/cn'
 import { GOALS_KEY, WELCOMED_KEY, readGoals, type Goal } from '@/lib/goals'
@@ -19,6 +20,9 @@ const AREAS = [
   { label: 'Productivity', icon: LaptopIcon, goal: 'Get more done with less stress' },
 ] as const
 
+/** Two jumps of the celebration (0.9 s each) before the chat opens. */
+const CELEBRATE_MS = 1800
+
 /**
  * The first thing ClawMuse asks a new user, once, right after a model is set
  * up: what they are working toward. Feed, Ideas and check-ins are all built
@@ -30,6 +34,11 @@ export default function WelcomeScreen() {
   const navigate = useNavigate()
   const [text, setText] = useState('')
   const [areas, setAreas] = useState<Set<string>>(new Set())
+  const [celebrating, setCelebrating] = useState(false)
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (leaveTimer.current) clearTimeout(leaveTimer.current)
+  }, [])
 
   function toggle(label: string): void {
     const next = new Set(areas)
@@ -40,6 +49,7 @@ export default function WelcomeScreen() {
 
   /** `pack`: a starter pack picked with one click — its goals, instead of the form's. */
   function finish(save: boolean, pack?: GoalPack): void {
+    if (celebrating) return
     const now = new Date().toISOString()
     const written = text.split('\n').map((line) => line.replace(/^[-*•\d.)\s]+/, '').trim()).filter((line) => line.length > 2).slice(0, 5)
     const picked = AREAS.filter((area) => areas.has(area.label)).map((area) => area.goal)
@@ -58,6 +68,13 @@ export default function WelcomeScreen() {
       window.clawmuse.assistant.syncContext({ goals: readGoals(), recentAsks: [], lastUserMessageAt: null, notificationsEnabled: true })
       void window.clawmuse.assistant.run('ideas')
       void window.clawmuse.assistant.run('feed')
+      // Committing to goals earns a celebration before the chat opens —
+      // skipped under reduced motion, where the jump would be the point.
+      if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        setCelebrating(true)
+        leaveTimer.current = setTimeout(() => navigate('/chat', { replace: true }), CELEBRATE_MS)
+        return
+      }
     }
     navigate('/chat', { replace: true })
   }
@@ -69,7 +86,7 @@ export default function WelcomeScreen() {
       <div className="drag absolute inset-x-0 top-0 h-10" />
       <div className="flex flex-1 items-center justify-center px-6 py-12">
         <div className="flex w-full max-w-form flex-col items-center gap-6">
-          <ClawMuseLogo size={52} variant="badge" />
+          <AvatarCompanion celebrate={celebrating} className="-mb-2" />
           <div className="flex flex-col items-center gap-1.5 text-center">
             <h1 className="text-title-2 font-bold text-content-primary">What are you working toward?</h1>
             <p className="text-body-sm text-content-tertiary">Tell me what matters to you right now. I'll build your Feed, ideas and check-ins around it. You can change it any time in Goals.</p>

@@ -9,7 +9,7 @@
 import type * as THREE from 'three'
 import { syntheticTalk, type AvatarState } from './animator'
 import { resolveAvatarConfig, type AvatarConfig, type ResolvedAvatarConfig } from './config'
-import { encodeGif } from './gif'
+import { encodeGifAsync } from './gif'
 import { createAvatarRenderer, createAvatarView, type AvatarFraming, type AvatarView } from './scene'
 
 export interface ExportCommon {
@@ -21,6 +21,23 @@ export interface ExportCommon {
   /** Background when not transparent. Default: the app's dark base. */
   background?: string
   framing?: AvatarFraming
+  /**
+   * Draw the avatar into a larger picture (a share clip: avatar beside a
+   * card). Transparent defaults to false when set.
+   */
+  compose?: ExportCompose
+}
+
+export interface ExportCompose {
+  /** Output size in pixels, each 16..MAX_SIZE. */
+  width: number
+  height: number
+  /**
+   * Draws one output frame onto a cleared canvas. `avatar` holds this frame
+   * of the avatar (`size` square, transparent). Must depend only on `t` — the
+   * export is deterministic only if this is.
+   */
+  draw(ctx: CanvasRenderingContext2D, avatar: CanvasImageSource, t: number): void
 }
 
 export interface PngOptions extends ExportCommon {
@@ -31,6 +48,12 @@ export interface PngOptions extends ExportCommon {
 export interface ClipOptions extends ExportCommon {
   seconds?: number
   fps?: number
+  /**
+   * Animation time of the first frame, seconds (default 0). Starting a
+   * periodic state one period in makes the last frame lead back into the
+   * first, so the clip loops without a seam.
+   */
+  offset?: number
 }
 
 const STEP = 1 / 60
@@ -48,7 +71,7 @@ class FrameRenderer {
 
   constructor(
     private readonly config: ResolvedAvatarConfig,
-    private readonly opts: Required<Omit<ExportCommon, 'background'>> & { background: string },
+    private readonly opts: ReturnType<typeof normalize>['opts'],
   ) {
     const size = opts.size
     this.glCanvas = document.createElement('canvas')
@@ -59,8 +82,8 @@ class FrameRenderer {
     this.view.setAspect(1)
     this.talk = opts.state === 'talking'
     this.canvas = document.createElement('canvas')
-    this.canvas.width = size
-    this.canvas.height = size
+    this.canvas.width = opts.compose?.width ?? size
+    this.canvas.height = opts.compose?.height ?? size
     const ctx = this.canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) throw new Error('2D canvas unavailable')
     this.ctx = ctx
@@ -77,13 +100,19 @@ class FrameRenderer {
     if (this.talk) animator.setTalkLevel(syntheticTalk(t, this.config.seed))
     this.view.update(t)
     this.renderer.render(this.view.scene, this.view.camera)
-    const { size, transparent, background } = this.opts
-    this.ctx.clearRect(0, 0, size, size)
+    const { transparent, background, compose } = this.opts
+    const { width, height } = this.canvas
+    this.ctx.clearRect(0, 0, width, height)
     if (!transparent) {
       this.ctx.fillStyle = background
-      this.ctx.fillRect(0, 0, size, size)
+      this.ctx.fillRect(0, 0, width, height)
     }
-    this.ctx.drawImage(this.glCanvas, 0, 0)
+    if (compose) compose.draw(this.ctx, this.glCanvas, t)
+    else this.ctx.drawImage(this.glCanvas, 0, 0)
+  }
+
+  frame(): ImageData {
+    return this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height)
   }
 
   dispose(): void {
@@ -96,14 +125,19 @@ class FrameRenderer {
 function normalize(config: AvatarConfig | ResolvedAvatarConfig | undefined, o: ExportCommon) {
   const resolved = isResolved(config) ? config : resolveAvatarConfig(config)
   const size = Math.round(Math.min(MAX_SIZE, Math.max(16, o.size ?? 512)))
+  const compose = o.compose
+  if (compose && ![compose.width, compose.height].every((n) => Number.isInteger(n) && n >= 16 && n <= MAX_SIZE)) {
+    throw new RangeError(`Composed export size must be whole pixels in 16..${MAX_SIZE}`)
+  }
   return {
     config: resolved,
     opts: {
       state: o.state ?? 'idle',
       size,
-      transparent: o.transparent ?? true,
+      transparent: o.transparent ?? !compose,
       background: o.background ?? DEFAULT_BG,
       framing: o.framing ?? 'full',
+      compose,
     } as const,
   }
 }
@@ -151,6 +185,7 @@ export async function exportClip(config: AvatarConfig | ResolvedAvatarConfig | u
   const fps = Math.min(60, Math.max(1, Math.round(options.fps ?? 30)))
   const seconds = Math.min(30, Math.max(0.5, options.seconds ?? 3))
   const frames = Math.round(seconds * fps)
+  const offset = Math.max(0, options.offset ?? 0)
   const fr = new FrameRenderer(resolved, opts)
   try {
     const stream = fr.canvas.captureStream(0)
@@ -158,7 +193,7 @@ export async function exportClip(config: AvatarConfig | ResolvedAvatarConfig | u
     if (!track) throw new Error('Canvas capture unavailable')
     const recorder = new MediaRecorder(stream, {
       mimeType,
-      videoBitsPerSecond: Math.min(12_000_000, Math.max(1_000_000, opts.size * opts.size * fps * 0.12)),
+      videoBitsPerSecond: Math.min(12_000_000, Math.max(1_000_000, fr.canvas.width * fr.canvas.height * fps * 0.12)),
     })
     const chunks: Blob[] = []
     recorder.ondataavailable = (e) => {
@@ -169,12 +204,12 @@ export async function exportClip(config: AvatarConfig | ResolvedAvatarConfig | u
       recorder.onerror = () => reject(new Error('Recording failed'))
     })
     // Draw frame 0 before starting so the first captured frame is not blank.
-    fr.drawAt(0)
+    fr.drawAt(offset)
     recorder.start()
     const frameMs = 1000 / fps
     const start = performance.now()
     for (let f = 0; f < frames; f++) {
-      fr.drawAt(f / fps)
+      fr.drawAt(offset + f / fps)
       track.requestFrame()
       const due = start + (f + 1) * frameMs
       await new Promise((r) => setTimeout(r, Math.max(0, due - performance.now())))
@@ -197,18 +232,19 @@ export async function exportGif(config: AvatarConfig | ResolvedAvatarConfig | un
   const fps = Math.min(50, Math.max(1, Math.round(options.fps ?? 15)))
   const seconds = Math.min(10, Math.max(0.5, options.seconds ?? 2))
   const count = Math.round(seconds * fps)
+  const offset = Math.max(0, options.offset ?? 0)
   const fr = new FrameRenderer(resolved, opts)
   try {
     const frames: { data: Uint8ClampedArray }[] = []
     for (let f = 0; f < count; f++) {
-      fr.drawAt(f / fps)
-      frames.push({ data: fr.ctx.getImageData(0, 0, opts.size, opts.size).data })
-      // Yield now and then so a long encode never freezes the UI.
+      fr.drawAt(offset + f / fps)
+      frames.push({ data: fr.frame().data })
+      // Yield now and then so a long render never freezes the UI.
       if (f % 8 === 7) await new Promise((r) => setTimeout(r, 0))
     }
-    const bytes = encodeGif(frames, {
-      width: opts.size,
-      height: opts.size,
+    const bytes = await encodeGifAsync(frames, {
+      width: fr.canvas.width,
+      height: fr.canvas.height,
       frameMs: 1000 / fps,
       transparent: opts.transparent,
     })

@@ -24,7 +24,7 @@ function hourItems(value: string) {
 
 /**
  * The built-in assistant's schedule: check-ins in the Main chat, the daily
- * Feed edition and Ideas refresh. Main runs them; this only edits settings.
+ * Feed edition and Ideas refresh, and the Weekly Recap. Main runs them; this only edits settings.
  */
 function ProactiveSettings() {
   const assistant = useAssistantStore((store) => store.state)
@@ -57,6 +57,11 @@ function ProactiveSettings() {
         <SettingsRow
           label="Refresh ideas daily"
           right={<Switch checked={settings.dailyIdeas} onCheckedChange={(dailyIdeas) => update({ dailyIdeas })} aria-label="Refresh ideas daily" />}
+        />
+        <SettingsRow
+          label="Weekly recap"
+          description="Every Sunday evening, a short look back at your week with ClawMuse on your Feed, ready to share."
+          right={<Switch checked={settings.weeklyRecap} onCheckedChange={(weeklyRecap) => update({ weeklyRecap })} aria-label="Weekly recap" />}
         />
       </SettingsGroup>
       <p className="px-3 text-footnote text-content-secondary">Runs while ClawMuse is open, including from the {IS_WINDOWS ? 'notification area' : 'menu bar'}. Check-ins only arrive during active hours, while you are at your {DEVICE}, and never while you are mid-conversation.</p>

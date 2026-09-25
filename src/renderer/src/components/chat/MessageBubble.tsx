@@ -4,6 +4,7 @@ import type { Message } from '@/types'
 import { AlertCircleIcon } from '@hugeicons/core-free-icons'
 import { Icon } from '@/components/primitives'
 import { cn } from '@/lib/cn'
+import { AvatarBadge, type AvatarConfig } from '@/features/avatar'
 import { textTintForBot } from './BotAvatar'
 import { MarkdownMessage } from './MarkdownMessage'
 import { ThinkingBlock } from './ThinkingBlock'
@@ -41,10 +42,23 @@ interface MessageBubbleProps {
   author?: BotSummary | null
   className?: string
   onReply?: (message: Message) => void
+  /**
+   * The agent's live avatar beside its replies. Given, an assistant row keeps a
+   * face column; `showFace` puts the face on the last bubble of a group and
+   * leaves the column empty on the others, so grouped bubbles stay aligned.
+   * Pass a stable reference — this component is memoised.
+   */
+  avatar?: AvatarConfig
+  showFace?: boolean
 }
 
+/** Edge of the face beside assistant bubbles, px. */
+export const BUBBLE_FACE_SIZE = 32
+/** A disc behind the face, so a figure with a transparent background reads as an avatar, not a sticker. */
+export const BUBBLE_FACE_CLASS = 'mb-0.5 rounded-full bg-bg-card'
+
 /** Renders one turn: user (right, primary), assistant (left, card), or tool (left, ToolCard list). */
-export const MessageBubble = memo(function MessageBubble({ message, author, className, onReply, grouping }: MessageBubbleProps) {
+export const MessageBubble = memo(function MessageBubble({ message, author, className, onReply, grouping, avatar, showFace }: MessageBubbleProps) {
   const isUser = message.role === 'user'
   const isTool = message.role === 'tool'
 
@@ -75,18 +89,20 @@ export const MessageBubble = memo(function MessageBubble({ message, author, clas
     )
   }
 
-  // No avatar column. In a one-to-one thread there is exactly one possible
-  // speaker and a face on every line is furniture; in a group the name goes
+  // A face only where the thread asks for one (the agent's live avatar in a
+  // one-to-one chat, once per group of bubbles); in a group chat the name goes
   // inside the bubble, in that bot's own colour, which is both smaller and
   // easier to follow.
+  const face = !isUser && avatar
   return (
     // `data-message-id` is the gateway's transcript id — the anchor a search hit jumps to.
-    <div data-message-role={message.role} data-message-id={message.id} className={cn('group relative my-1.5 flex flex-col px-6', isUser ? 'items-end' : 'items-start', className)}>
+    <div data-message-role={message.role} data-message-id={message.id} className={cn('group relative my-1.5 flex px-6', isUser ? 'flex-col items-end' : face ? 'flex-row items-end gap-2' : 'flex-col items-start', className)}>
+      {face && (showFace ? <AvatarBadge config={avatar} size={BUBBLE_FACE_SIZE} className={BUBBLE_FACE_CLASS} /> : <span aria-hidden className="shrink-0" style={{ width: BUBBLE_FACE_SIZE }} />)}
       {/* Two bubbles, no borders, no brand colour: the bot speaks in grey and
           the user answers in cream. Colour in a transcript should mean "this
           is a different voice", and a bordered card in an accent hue means
           neither. */}
-      <div className="muse-bubble-slot relative">
+      <div className={cn('muse-bubble-slot relative', face && 'min-w-0')}>
       <div
         className={cn(
           'muse-chat-bubble flex max-w-[84%] flex-col gap-1 rounded-bubble px-3 py-2',

@@ -35,7 +35,7 @@ import type {
   WindowKind,
 } from '@shared/ipc'
 import type { AssistantContext, AssistantJob, AssistantSettings, AssistantState } from '@shared/assistant'
-import type { ShareCardAction, ShareCardInput, ShareCardRender } from '@shared/share-card'
+import type { ShareCardAction, ShareCardInput, ShareCardRender, ShareClipInput, ShareClipResult } from '@shared/share-card'
 
 /**
  * The only surface the renderer gets onto the main process.
@@ -268,9 +268,16 @@ const api = {
     syncContext: (context: AssistantContext): void => ipcRenderer.send('assistant:context', context),
     onState: (cb: (state: AssistantState) => void): Unsubscribe => on('assistant-state', cb),
   },
+  /** ClawMuse's avatar look (style, accessory, colours) — also changed by the assistant. */
+  avatar: {
+    get: (): Promise<Record<string, unknown> | null> => ipcRenderer.invoke('avatar:get'),
+    set: (look: Record<string, unknown>): Promise<Record<string, unknown> | null> => ipcRenderer.invoke('avatar:set', look),
+    onChange: (cb: (look: Record<string, unknown> | null) => void): Unsubscribe => on('avatar-look', cb),
+  },
   /** Share cards: a PNG drawn on this computer, then copied, saved or shared by the user. */
   share: {
     render: (input: ShareCardInput): Promise<ShareCardRender> => ipcRenderer.invoke('share:render', input),
+    clip: (input: ShareClipInput): Promise<ShareClipResult> => ipcRenderer.invoke('share:clip', input),
     copy: (id: string): Promise<ShareCardAction> => ipcRenderer.invoke('share:copy', id),
     save: (id: string): Promise<ShareCardAction> => ipcRenderer.invoke('share:save', id),
     system: (id: string): Promise<ShareCardAction> => ipcRenderer.invoke('share:system', id),

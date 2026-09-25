@@ -6,7 +6,7 @@
  * default instead of throwing — an avatar that renders with the house colours
  * is always better than one that does not render.
  */
-import { z } from 'zod'
+import * as z from 'zod'
 import { ACCENT_COLORS, HAIR_PALETTE, SKIN_PALETTE } from '@/features/room3d/engine/constants'
 import { seedOf } from '@/features/room3d/engine/rng'
 
@@ -106,6 +106,18 @@ export function resolveAvatarConfig(input?: unknown): ResolvedAvatarConfig {
       hair: parsed.colors.hair ?? (isMuse ? MUSE_HAIR : HAIR_PALETTE[(seed + 3) % HAIR_PALETTE.length]!),
     },
   }
+}
+
+/**
+ * The avatar an agent gets when nobody has designed one: the default agent is
+ * the ClawMuse muse, every other bot a non-muse body picked from its id, so
+ * two bots in a roster never look alike and one bot looks the same everywhere.
+ */
+export function avatarConfigForAgent(agent: { id: string; name?: string | null; isDefault?: boolean } | null | undefined): AvatarConfig {
+  const name = agent?.name?.trim() || undefined
+  if (!agent || agent.isDefault) return { name }
+  const styles = AVATAR_STYLES.filter((style) => style !== 'muse')
+  return { style: styles[seedOf(agent.id) % styles.length], seed: agent.id, name }
 }
 
 /** Stable identity of a resolved config — equal keys render identical meshes. */

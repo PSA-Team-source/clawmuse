@@ -35,7 +35,7 @@ import { Dialog } from '@/components/primitives'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useChatStore } from '@/stores/chat.store'
-import { GOALS_KEY, readGoals, type Goal } from '@/lib/goals'
+import { GOALS_KEY, readGoals, withCompleted, type Goal } from '@/lib/goals'
 import { GOAL_PACKS, goalsFromPack, type GoalPack } from '@/lib/goal-packs'
 import { useToast } from '@/components/patterns'
 import { cn } from '@/lib/cn'
@@ -45,6 +45,7 @@ import { useAssistantStore } from '@/stores/assistant.store'
 import { AgentAvatar } from '@/components/status/AgentAvatar'
 import { failureNotice } from '@/lib/failure-notice'
 import { shareCard } from '@/stores/share-card.store'
+import { RecapButton, WeeklyRecapSection } from './WeeklyRecap'
 import type { FsEntry, FsRoot } from '@shared/ipc'
 
 /** Where saved work lives in the workspace ("Show in Library" writes here). */
@@ -180,7 +181,7 @@ export function FeedScreen() {
   const schedule = assistant.settings.dailyFeed && !job?.running ? nextRunLabel(job?.nextRunAt) : null
 
   return (
-    <Page title="Feed" inset>
+    <Page title="Feed" inset action={<RecapButton />}>
       <div className="muse-feed-prompt mb-8 flex flex-col gap-3 border border-line-hairline bg-bg-panel p-5 shadow-composer">
         <div className="flex items-center justify-between gap-3">
           <span className="text-footnote font-semibold uppercase text-content-tertiary">Your feed prompt</span>
@@ -200,6 +201,7 @@ export function FeedScreen() {
           <button type="button" onClick={savePrompt} disabled={!draft.trim() || draft.trim() === prompt} className="h-7 rounded-full bg-muse-blue text-muse-artifact-name font-medium text-white disabled:opacity-45">Save</button>
         </div>
       </Dialog>
+      <WeeklyRecapSection progress={(label, onStop) => <GenerationProgress label={label} onStop={onStop} />} />
       {job?.running && <GenerationProgress label={job.running.phase} onStop={() => void window.clawmuse.assistant.stop('feed')} />}
       {!job?.running && job?.lastError && <p role="alert" className="mb-6 text-body-sm text-content-secondary">{failureNotice(job.lastError)}</p>}
       {items.length === 0 ? (
@@ -362,7 +364,7 @@ export function GoalsScreen() {
     <Page title="Goals" action={
       <Menu align="end" trigger={<IconButton icon={MoreHorizontalIcon} label="Goals options" size="sm" shape="circle" className="bg-fill-raised" />}>
         <Menu.Item onClick={() => setShowCompleted((value) => !value)}>{showCompleted ? 'Hide completed goals' : 'Show completed goals'}</Menu.Item>
-        {visibleGoals.some((goal) => !goal.completed) && <Menu.Item onClick={() => persist(visibleGoals.map((goal) => ({ ...goal, completed: true })))}>Mark all complete</Menu.Item>}
+        {visibleGoals.some((goal) => !goal.completed) && <Menu.Item onClick={() => persist(visibleGoals.map((goal) => withCompleted(goal, true)))}>Mark all complete</Menu.Item>}
       </Menu>
     }>
       <div className="flex flex-col gap-8 pt-2">
@@ -373,7 +375,7 @@ export function GoalsScreen() {
           </div>
           {displayedGoals.map((goal) => (
             <label key={goal.id} className="-mx-2 flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2.5 hover:bg-fill-strong">
-              <span className="flex size-6 shrink-0 items-center justify-center"><input type="checkbox" checked={goal.completed} onChange={() => persist(visibleGoals.map((item) => item.id === goal.id ? { ...item, completed: !item.completed } : item))} className="size-4" /></span>
+              <span className="flex size-6 shrink-0 items-center justify-center"><input type="checkbox" checked={goal.completed} onChange={() => persist(visibleGoals.map((item) => item.id === goal.id ? withCompleted(item, !item.completed) : item))} className="size-4" /></span>
               <span className={`text-body ${goal.completed ? 'text-content-faint line-through' : 'text-content-primary'}`}>{goal.title}</span>
             </label>
           ))}

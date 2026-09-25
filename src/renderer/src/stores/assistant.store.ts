@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { create } from 'zustand'
 import { isUserChat, type AssistantState } from '@shared/assistant'
+import { isAppPrompt } from '@shared/recap'
 import { readGoals } from '@/lib/goals'
 import { useChatStore } from '@/stores/chat.store'
 import { useSettingsStore } from '@/stores/settings.store'
@@ -21,15 +22,12 @@ export const useAssistantStore = create<AssistantStore>((set) => ({
   set: (state) => set({ state }),
 }))
 
-/** Feed/Ideas runs used to be chats; their prompts must never read as the user's own asks. */
-const APP_PROMPT = /^(\[ClawMuse feed\]|Suggest 6 to 9 concrete things)/
-
 /** The user's own recent requests (never background automation runs), newest first. */
 export function recentUserAsks(sessions: readonly { id: string }[], messages: Record<string, Message[] | undefined>): string[] {
   return sessions
     .filter((session) => isUserChat(session.id))
     .flatMap((session) => {
-      const ask = [...(messages[session.id] ?? [])].reverse().find((message) => message.role === 'user' && message.content.trim() && !APP_PROMPT.test(message.content.trim()))
+      const ask = [...(messages[session.id] ?? [])].reverse().find((message) => message.role === 'user' && message.content.trim() && !isAppPrompt(message.content))
       return ask ? [ask.content.trim()] : []
     })
     .slice(0, 8)
@@ -40,7 +38,7 @@ function lastUserMessageAt(messages: Record<string, Message[] | undefined>): num
   for (const [sessionId, thread] of Object.entries(messages)) {
     if (!isUserChat(sessionId)) continue
     for (const message of thread ?? []) {
-      if (message.role !== 'user' || APP_PROMPT.test(message.content.trim())) continue
+      if (message.role !== 'user' || isAppPrompt(message.content)) continue
       const at = Date.parse(message.created_at)
       if (at > latest) latest = at
     }
