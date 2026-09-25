@@ -64,7 +64,7 @@ export function createMainWindow(settings = false): BrowserWindow {
   win.once('ready-to-show', () => win.show())
 
   // Anything that isn't our own app opens in the user's real browser —
-  // Stripe checkout, Facebook OAuth, PlatformDTC, docs.
+  // OAuth pages, provider consoles, docs.
   win.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url)
     return { action: 'deny' }

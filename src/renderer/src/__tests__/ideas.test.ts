@@ -3,8 +3,8 @@ import { groupIdeas, ideasRequest, isUserChat, parseIdeas } from '@shared/assist
 
 describe('ideas from the agent', () => {
   it('grounds the request in open goals and real asks only', () => {
-    const text = ideasRequest([{ id: 'g', title: 'Build PlatformDTC into a $1B company', completed: false, createdAt: '' }, { id: 'd', title: 'Done goal', completed: true, createdAt: '' }], ['Audit my Stripe rate'])
-    expect(text).toContain('- Build PlatformDTC into a $1B company')
+    const text = ideasRequest([{ id: 'g', title: 'Grow my online store to $50k a month', completed: false, createdAt: '' }, { id: 'd', title: 'Done goal', completed: true, createdAt: '' }], ['Audit my Stripe rate'])
+    expect(text).toContain('- Grow my online store to $50k a month')
     expect(text).not.toContain('Done goal')
     expect(text).toContain('- Audit my Stripe rate')
     expect(isUserChat('webchat:main:conv:x')).toBe(true)

@@ -1,26 +1,22 @@
 import { cn } from '@/lib/cn'
+import { BRAND_CANVAS as CANVAS, BRAND_CORAL, BRAND_CORNER as CORNER, BRAND_MARK, BRAND_MARK_BOX as MARK } from '@shared/brand'
 
 /**
  * The ClawMuse mark — a claw catching a spark — drawn from the same geometry
  * as the app icon (resources/glyph.svg), so every in-app logo matches the Dock.
- * Coordinates are the icon's 1024 canvas; `glyph` crops to the mark itself.
+ * The geometry lives in @shared/brand so the share card draws the same mark;
+ * `glyph` crops to the mark itself.
  */
 
-const BRAND_CORAL = '#FF5A4E'
-const CANVAS = 1024
-const CORNER = 0.2237 * CANVAS // the macOS/iOS icon corner radius
-/** The mark's bounding box in the 1024 canvas (measured from the rendered glyph). */
-const MARK = { x: 322, y: 174, w: 478, h: 637 }
-
 function Mark() {
+  const { outer, claw, jaws, palm, spark } = BRAND_MARK
   return (
-    <g transform="translate(512 512) scale(0.86) translate(-512 -512) translate(34 -14)">
-      <g transform="rotate(32 512 560)">
-        <path d="M352 736 C 318 500 356 292 492 140 C 452 280 456 440 530 626 Z" />
-        <path d="M512 642 C 616 482 618 330 566 196 C 682 288 712 460 672 668 Z" />
-        <ellipse cx="516" cy="728" rx="170" ry="168" />
+    <g transform={outer}>
+      <g transform={claw}>
+        {jaws.map((d) => <path key={d} d={d} />)}
+        <ellipse {...palm} />
       </g>
-      <path d="M742 132 C 748 186 760 198 814 204 C 760 210 748 222 742 276 C 736 222 724 210 670 204 C 724 198 736 186 742 132 Z" />
+      <path d={spark} />
     </g>
   )
 }

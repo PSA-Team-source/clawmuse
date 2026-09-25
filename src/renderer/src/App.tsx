@@ -6,6 +6,7 @@ import { Spinner } from '@/components/brand'
 import { ToastProvider } from '@/components/patterns'
 import { TooltipProvider } from '@/components/primitives'
 import { AppShell } from '@/shell/AppShell'
+import { ShareCardDialog } from '@/components/share/ShareCardDialog'
 import { useGatewayStore } from '@/stores/gateway.store'
 import { useRuntimeStore } from '@/stores/runtime.store'
 import { watchAppearance } from '@/stores/appearance.store'
@@ -202,6 +203,7 @@ export function App() {
           <Router>
             <AppRoutes />
           </Router>
+          <ShareCardDialog />
         </TooltipProvider>
       </ToastProvider>
     </QueryClientProvider>

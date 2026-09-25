@@ -26,6 +26,8 @@ import {
   Image01Icon,
   Note01Icon,
   Video01Icon,
+  Share08Icon,
+  Tick02Icon,
 } from '@hugeicons/core-free-icons'
 import { IconButton, Spinner } from '@/components/brand'
 import { AlertDialog, Icon, Menu } from '@/components/primitives'
@@ -34,12 +36,15 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useChatStore } from '@/stores/chat.store'
 import { GOALS_KEY, readGoals, type Goal } from '@/lib/goals'
+import { GOAL_PACKS, goalsFromPack, type GoalPack } from '@/lib/goal-packs'
+import { useToast } from '@/components/patterns'
 import { cn } from '@/lib/cn'
 import { formatRelativeTime } from '@/utils/format'
 import { groupIdeas, type FeedUnit, type Idea } from '@shared/assistant'
 import { useAssistantStore } from '@/stores/assistant.store'
 import { AgentAvatar } from '@/components/status/AgentAvatar'
 import { failureNotice } from '@/lib/failure-notice'
+import { shareCard } from '@/stores/share-card.store'
 import type { FsEntry, FsRoot } from '@shared/ipc'
 
 /** Where saved work lives in the workspace ("Show in Library" writes here). */
@@ -61,6 +66,19 @@ function FeedHero({ src }: { src: string }) {
   const [failed, setFailed] = useState(false)
   if (failed) return null
   return <img src={src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} className="mt-3 aspect-video w-full max-w-[464px] rounded-2xl border border-line-hairline bg-bg-panel object-cover" />
+}
+
+/** A unit's publishers as its byline says them ("The Verge · Reuters"). */
+function sourceNames(item: FeedUnit): string {
+  const names = (item.sources ?? []).map((source) => {
+    if (source.source) return source.source
+    try { return new URL(source.url).hostname.replace(/^www\./, '') } catch { return '' }
+  })
+  return [...new Set(names.filter(Boolean))].join(' · ')
+}
+
+function shareFeedUnit(item: FeedUnit): void {
+  shareCard({ kind: 'feed', title: item.title, body: item.body, image: item.image, source: sourceNames(item) || undefined })
 }
 
 /** Opens a feed link in the browser — never inside the app window. */
@@ -197,6 +215,7 @@ export function FeedScreen() {
                   <Menu.Item onClick={() => void navigator.clipboard.writeText(`${item.title}\n\n${item.body}`)}>Copy</Menu.Item>
                   {item.sources?.[0] && <Menu.Item onClick={() => void window.clawmuse.shell.openExternal(item.sources![0]!.url)}>Open article</Menu.Item>}
                   <Menu.Item onClick={() => discuss(item)}>Discuss</Menu.Item>
+                  <Menu.Item onClick={() => shareFeedUnit(item)}>Share</Menu.Item>
                   <Menu.Separator />
                   <Menu.Item tone="danger" onClick={() => void window.clawmuse.assistant.markFeedUnit(item.id, 'hide')}>Hide from feed</Menu.Item>
                 </Menu>
@@ -213,6 +232,7 @@ export function FeedScreen() {
                 <div className="mt-3 flex items-center gap-4 text-body-sm font-medium text-content-secondary">
                   <button type="button" aria-label="Love" aria-pressed={liked.has(item.id)} onClick={() => void window.clawmuse.assistant.markFeedUnit(item.id, liked.has(item.id) ? 'unlike' : 'like')} className={`flex items-center hover:text-content-primary ${liked.has(item.id) ? 'text-muse-blue' : ''}`}><Icon icon={FavouriteIcon} size={20} className="text-current" /></button>
                   <button type="button" onClick={() => discuss(item)} className="flex items-center gap-2 hover:text-content-primary"><Icon icon={BubbleChatIcon} size={20} className="text-current" />Discuss</button>
+                  <button type="button" onClick={() => shareFeedUnit(item)} className="flex items-center gap-2 hover:text-content-primary"><Icon icon={Share08Icon} size={20} className="text-current" />Share</button>
                 </div>
               </article>)}
             </div>
@@ -268,6 +288,7 @@ export function IdeasScreen() {
                   <div className="relative z-10 shrink-0">
                     <Menu align="end" trigger={<IconButton icon={MoreVerticalIcon} label="Idea feedback" size="sm" className="opacity-0 group-hover:opacity-100" />}>
                       <Menu.Item onClick={() => { startPrompt(`Explain why this idea fits me and what you based it on.\n\n${idea.title}`); navigate(`/chat/${encodeURIComponent(useChatStore.getState().createSession())}`) }}>Why this idea?</Menu.Item>
+                      <Menu.Item onClick={() => shareCard({ kind: 'idea', title: idea.title, body: idea.description, emoji: idea.emoji })}>Share</Menu.Item>
                       <Menu.Item onClick={() => void window.clawmuse.assistant.hideIdea(idea.id)}>Not interested</Menu.Item>
                     </Menu>
                   </div>
@@ -296,6 +317,7 @@ export function GoalsScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [showCompleted, setShowCompleted] = useState(false)
   const navigate = useNavigate()
+  const toast = useToast()
   // React Router can retain this screen while another lazy route resolves.
   // Read through to storage on every render so a goal confirmed in chat is
   // visible immediately even when the retained component missed the event.
@@ -318,6 +340,13 @@ export function GoalsScreen() {
     localStorage.setItem(GOALS_KEY, JSON.stringify(next))
     // The assistant plans around open goals; tell it they moved.
     window.dispatchEvent(new Event('clawmuse-goals-changed'))
+  }
+
+  function addPack(pack: GoalPack): void {
+    const added = goalsFromPack(pack, visibleGoals)
+    if (!added.length) return
+    persist([...added, ...visibleGoals])
+    toast.show({ title: `Added ${added.length === 1 ? '1 goal' : `${added.length} goals`}`, description: pack.label, variant: 'success' })
   }
 
   function refineGoal(): void {
@@ -359,6 +388,28 @@ export function GoalsScreen() {
               <span className="flex size-6 shrink-0 items-center justify-center"><Icon icon={ArrowRight01Icon} size={20} className="text-content-tertiary" /></span>
             </button>
           ))}
+        </section>
+
+        <section aria-labelledby="goals-packs" className="flex flex-col">
+          <div className="flex flex-col py-2.5">
+            <h2 id="goals-packs" className="muse-section-title text-content-primary">Starter packs</h2>
+            <p className="text-body-sm text-content-secondary">A few ready-made goals in one click. Edit or complete them any time.</p>
+          </div>
+          {GOAL_PACKS.map((pack) => {
+            const added = goalsFromPack(pack, visibleGoals).length === 0
+            return (
+              <button key={pack.id} type="button" data-goal-pack={pack.id} disabled={added} onClick={() => addPack(pack)} title={pack.goals.join('\n')} className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-3 text-left enabled:hover:bg-fill-strong">
+                <span className="flex size-6 shrink-0 items-center justify-center"><Icon icon={pack.icon} size={22} className="text-content-secondary" /></span>
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-body font-medium text-content-primary">{pack.label}</span>
+                  <span className="truncate text-body-sm text-content-tertiary">{pack.goals.join(' · ')}</span>
+                </span>
+                {added
+                  ? <span className="flex shrink-0 items-center gap-1 text-body-sm text-content-tertiary"><Icon icon={Tick02Icon} size={16} className="text-current" />Added</span>
+                  : <span className="flex size-6 shrink-0 items-center justify-center"><Icon icon={Add01Icon} size={20} className="text-content-tertiary" /></span>}
+              </button>
+            )
+          })}
         </section>
       </div>
       <Dialog open={Boolean(selectedCategory)} onOpenChange={(value) => !value && setSelectedCategory(null)} title={selectedCategory === 'Something else' ? 'Create a new goal' : `Create a ${selectedCategory?.toLowerCase() ?? ''} goal`} backdropClassName="bg-black/10" className="muse-goal-dialog w-[312px] p-4">

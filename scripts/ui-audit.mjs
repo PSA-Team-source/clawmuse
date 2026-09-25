@@ -16,7 +16,7 @@
  */
 import { writeFileSync, mkdirSync } from 'node:fs'
 
-const PORT = Number((process.env.CLAWMUSE_DEBUG_PORT ?? process.env.LOCALFANG_DEBUG_PORT) ?? 9333)
+const PORT = Number(process.env.CLAWMUSE_DEBUG_PORT ?? 9333)
 const OUT = process.argv[2] ?? '/tmp/clawmuse-ui'
 mkdirSync(OUT, { recursive: true })
 

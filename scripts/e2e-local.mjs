@@ -8,7 +8,7 @@
  *   2. it connects to 127.0.0.1 with a *scoped* session (the device-identity
  *      trap: a scope-less session still handshakes "successfully"),
  *   3. data written through the gateway shows up on screen,
- *   4. and nothing ever talks to localfang.ai.
+ *   4. and nothing ever talks to a hosted backend.
  *
  * That last one is the whole point of the mode, and it is the kind of
  * regression that no unit test catches — one forgotten `useQuery` is enough.
@@ -693,7 +693,7 @@ try {
     securityBody.replace(/\n/g, ' ⏎ ').slice(-160),
   )
 
-  // ── 7b. ClawMuse exposes one assistant, not FangBot's old team room ────────
+  // ── 7b. ClawMuse exposes one assistant, not the old team room ────────
   await evaluate(client, `location.hash = '#/room'`)
   await sleep(1200)
   const roomRedirect = await evaluate(client, `location.hash`)
@@ -708,7 +708,7 @@ try {
   )
 
   // Automations are represented through Muse's Goals surface, not a separate
-  // FangBot task manager.
+  // hosted task manager.
   await evaluate(client, `location.hash = '#/tasks'`)
   await sleep(800)
   check(
@@ -737,7 +737,7 @@ try {
 
   // ── 7e. Legal text is readable offline ────────────────────────────────────
   // Deciding whether to trust an app with your machine should not require that
-  // app to be online — and local mode may never reach localfang.ai at all.
+  // app to be online — and local mode may never reach a hosted backend at all.
   await evaluate(client, `location.hash = '#/settings/legal/privacy'`)
   await sleep(1500)
   const privacyBody = await text(client)
@@ -749,7 +749,7 @@ try {
 
   // ── 7f. Retired server-only surfaces stay unreachable ─────────────────────
   // Typing a URL is one keystroke away under hash routing, and each of these
-  // would fire requests at localfang.ai from a mode that must never touch it.
+  // would fire requests at a hosted backend from a mode that must never touch it.
   for (const [label, route] of [
     ['BrandSphere', '/brandsphere'],
     ['Store Builder', '/store-builder'],
@@ -766,7 +766,9 @@ try {
   const cloudRequests = client.events
     .filter((e) => e.method === 'Network.requestWillBeSent')
     .map((e) => e.params?.request?.url ?? '')
-    .filter((url) => /localfang\.ai|amazonaws|98\.85\.238\.194/i.test(url))
+    // Local mode talks to loopback and devtools only; anything with a real
+    // host would be the retired cloud backend (or something worse).
+    .filter((url) => /^(https?|wss?):\/\//i.test(url) && !/^(https?|wss?):\/\/(127\.0\.0\.1|localhost|\[::1\])[:/]/i.test(url))
   check(
     'no request ever left for the cloud',
     cloudRequests.length === 0,

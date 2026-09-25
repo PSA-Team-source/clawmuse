@@ -5,16 +5,15 @@ import { DEFAULT_PORT, paths } from './paths.js'
 /**
  * Generates `~/.openclaw-clawmuse/openclaw.json`.
  *
- * This is the single-tenant counterpart of the server's `createSandboxConfig`
- * (`_LOCALFANG/server/src/services/sandbox-manager.js`). The differences from the
- * production document are all deliberate:
+ * This is the single-tenant counterpart of a hosted multi-tenant OpenClaw
+ * config. The differences from that document are all deliberate:
  *
- * | field                  | prod (EC2)                       | here                    |
+ * | field                  | hosted                           | here                    |
  * |------------------------|----------------------------------|-------------------------|
  * | `gateway.bind`         | trustedProxies open to all       | `loopback`, no proxies  |
  * | `gateway.auth.token`   | server-issued, injected by bridge| app-issued, app-sent    |
  * | `models.providers`     | keys from `server/.env`          | BYOK, keys live in .env |
- * | `mcp.servers`          | facebook-ads + platformdtc       | `{}` (both are server   |
+ * | `mcp.servers`          | hosted-only connectors           | `{}` (both are server   |
  * |                        |                                  | processes; absent local)|
  * | bedrock plugin + ~/.aws| present                          | dropped                 |
  * | `discovery.mdns`       | on                               | **off**                 |
@@ -240,7 +239,7 @@ export function buildConfig(input: ConfigInput): Record<string, unknown> {
     // Empty is the honest starting point, not a limitation: OpenClaw runs the
     // servers itself (spawning stdio processes, handling OAuth for HTTP ones),
     // so this machine can host any MCP server the ecosystem offers as soon as
-    // one is registered. The production pair (facebook-ads, platformdtc) are
+    // one is registered. Hosted-only connectors are
     // absent because they are server-side processes that read a multi-tenant
     // Postgres, not because local mode cannot host connectors.
     mcp: { servers: {} },

@@ -16,7 +16,7 @@
   <key>com.apple.security.device.camera</key>
   <true/>
 
-  <!-- Outbound HTTPS/WSS to localfang.ai -->
+  <!-- Outbound HTTPS/WSS: model providers, news, connectors -->
   <key>com.apple.security.network.client</key>
   <true/>
 </dict>

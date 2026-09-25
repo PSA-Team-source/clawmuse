@@ -5,6 +5,7 @@ import { ClawMuseLogo, GhostButton, GradientButton } from '@/components/brand'
 import { Icon } from '@/components/primitives'
 import { cn } from '@/lib/cn'
 import { GOALS_KEY, WELCOMED_KEY, readGoals, type Goal } from '@/lib/goals'
+import { GOAL_PACKS, goalsFromPack, type GoalPack } from '@/lib/goal-packs'
 
 /** Areas of life; picking one without writing anything still gives the assistant a real goal to work around. */
 const AREAS = [
@@ -37,12 +38,15 @@ export default function WelcomeScreen() {
     setAreas(next)
   }
 
-  function finish(save: boolean): void {
+  /** `pack`: a starter pack picked with one click — its goals, instead of the form's. */
+  function finish(save: boolean, pack?: GoalPack): void {
     const now = new Date().toISOString()
     const written = text.split('\n').map((line) => line.replace(/^[-*•\d.)\s]+/, '').trim()).filter((line) => line.length > 2).slice(0, 5)
     const picked = AREAS.filter((area) => areas.has(area.label)).map((area) => area.goal)
-    const titles = save ? [...written, ...(written.length ? [] : picked)] : []
-    const goals: Goal[] = titles.map((title, index) => ({ id: `goal-welcome-${Date.now().toString(36)}-${index}`, title: title.slice(0, 200), completed: false, createdAt: now }))
+    const titles = save && !pack ? [...written, ...(written.length ? [] : picked)] : []
+    const goals: Goal[] = pack
+      ? goalsFromPack(pack, readGoals())
+      : titles.map((title, index) => ({ id: `goal-welcome-${Date.now().toString(36)}-${index}`, title: title.slice(0, 200), completed: false, createdAt: now }))
     try {
       if (goals.length) localStorage.setItem(GOALS_KEY, JSON.stringify([...goals, ...readGoals()]))
       localStorage.setItem(WELCOMED_KEY, now)
@@ -69,6 +73,32 @@ export default function WelcomeScreen() {
           <div className="flex flex-col items-center gap-1.5 text-center">
             <h1 className="text-title-2 font-bold text-content-primary">What are you working toward?</h1>
             <p className="text-body-sm text-content-tertiary">Tell me what matters to you right now. I'll build your Feed, ideas and check-ins around it. You can change it any time in Goals.</p>
+          </div>
+
+          <section aria-labelledby="welcome-packs" className="w-full">
+            <h2 id="welcome-packs" className="mb-1.5 text-footnote font-semibold uppercase text-content-tertiary">Start with a pack</h2>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {GOAL_PACKS.map((pack) => (
+                <button
+                  key={pack.id}
+                  type="button"
+                  data-goal-pack={pack.id}
+                  onClick={() => finish(true, pack)}
+                  title={pack.goals.join('\n')}
+                  className="flex min-h-[76px] flex-col items-start justify-between gap-2 rounded-2xl border border-line-hairline bg-bg-panel p-3 text-left transition-colors hover:bg-fill-raised focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-muse-blue"
+                >
+                  <Icon icon={pack.icon} size={20} className="text-content-secondary" />
+                  <span className="flex w-full flex-col">
+                    <span className="text-body-sm font-semibold leading-tight text-content-primary">{pack.label}</span>
+                    <span className="text-caption text-content-tertiary">{pack.goals.length} goals</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <div className="flex w-full items-center gap-3 text-footnote font-semibold uppercase text-content-tertiary">
+            <span className="h-px flex-1 bg-line-hairline" />or pick areas<span className="h-px flex-1 bg-line-hairline" />
           </div>
 
           <div className="flex flex-wrap justify-center gap-2">

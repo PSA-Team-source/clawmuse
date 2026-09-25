@@ -35,6 +35,7 @@ import type {
   WindowKind,
 } from '@shared/ipc'
 import type { AssistantContext, AssistantJob, AssistantSettings, AssistantState } from '@shared/assistant'
+import type { ShareCardAction, ShareCardInput, ShareCardRender } from '@shared/share-card'
 
 /**
  * The only surface the renderer gets onto the main process.
@@ -266,6 +267,13 @@ const api = {
     /** What main needs for background runs; goals and chats live in the renderer. */
     syncContext: (context: AssistantContext): void => ipcRenderer.send('assistant:context', context),
     onState: (cb: (state: AssistantState) => void): Unsubscribe => on('assistant-state', cb),
+  },
+  /** Share cards: a PNG drawn on this computer, then copied, saved or shared by the user. */
+  share: {
+    render: (input: ShareCardInput): Promise<ShareCardRender> => ipcRenderer.invoke('share:render', input),
+    copy: (id: string): Promise<ShareCardAction> => ipcRenderer.invoke('share:copy', id),
+    save: (id: string): Promise<ShareCardAction> => ipcRenderer.invoke('share:save', id),
+    system: (id: string): Promise<ShareCardAction> => ipcRenderer.invoke('share:system', id),
   },
   onDeepLink: (cb: (url: string) => void): Unsubscribe => on('deeplink', cb),
   onMenuCommand: (cb: (command: MenuCommand) => void): Unsubscribe => on('menu-command', cb),

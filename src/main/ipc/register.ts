@@ -53,6 +53,7 @@ import { transcribeDictation } from '../services/local-runtime/dictation.js'
 import { saveIssueReport } from '../services/issue-report.js'
 import { removeClawMuse } from '../services/remove-app.js'
 import { getAssistantState, hideIdea, importLegacy, markFeedUnit, runAssistantJob, setAssistantSettings, setFeedPrompt, stopAssistantJob, syncAssistantContext } from '../services/assistant.js'
+import { copyShareCard, renderShareCard, saveShareCard, shareCardViaSystem } from '../services/share-card.js'
 import { exportAgentData } from '../services/local-runtime/data-export.js'
 import { setAgentIdentity } from '../services/local-runtime/agent-identity.js'
 import { connectWallet, disconnectWallet, walletCardFields, walletCards, walletConfig, walletStatus } from '../services/local-runtime/wallet.js'
@@ -149,6 +150,12 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('assistant:hide-idea', (_e, id: unknown) => hideIdea(id))
   ipcMain.handle('assistant:import-legacy', (_e, legacy: unknown) => importLegacy(legacy))
   ipcMain.on('assistant:context', (_e, context: unknown) => syncAssistantContext(context))
+  // ── Share cards ───────────────────────────────────────────────────────────
+  // Input is validated in renderShareCard (parseShareCardInput); ids are opaque.
+  ipcMain.handle('share:render', (_e, input: unknown) => renderShareCard(input))
+  ipcMain.handle('share:copy', (_e, id: unknown) => copyShareCard(id))
+  ipcMain.handle('share:save', (event, id: unknown) => saveShareCard(senderWindow(event), id))
+  ipcMain.handle('share:system', (event, id: unknown) => shareCardViaSystem(senderWindow(event), id))
   ipcMain.handle('app:preferences', () => getAppPreferences())
   ipcMain.handle('app:set-preference', (_event, key: unknown, value: unknown) => {
     if (key === 'pushToTalk') {

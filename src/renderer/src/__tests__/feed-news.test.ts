@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { feedQueriesRequest, feedWriteRequest, mergeNews, parseEdition, parseQueries } from '@shared/assistant'
 
-const goal = { id: 'g', title: 'Build PlatformDTC into a $1B company', completed: false, createdAt: '' }
+const goal = { id: 'g', title: 'Grow my online store to $50k a month', completed: false, createdAt: '' }
 
 describe('feed from real headlines', () => {
   it('asks for queries around the open goals and real asks', () => {
     const text = feedQueriesRequest('Keep it short.', [goal], ['Audit Stripe rates'])
     expect(text.startsWith('My feed prompt: Keep it short.')).toBe(true)
-    expect(text).toContain('- Build PlatformDTC into a $1B company')
+    expect(text).toContain('- Grow my online store to $50k a month')
     expect(text).toContain('- Audit Stripe rates')
   })
   it('reads a JSON array of queries, else null', () => {

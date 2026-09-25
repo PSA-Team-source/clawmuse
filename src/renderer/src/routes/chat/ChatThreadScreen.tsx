@@ -109,7 +109,7 @@ export default function ChatThreadScreen({ sessionId: embeddedSessionId }: { ses
   const bots = useBotsStore((state) => state.bots)
   // An unprefixed `webchat:*` key belongs to the default bot — that is what the
   // gateway resolves it to. Without this the thread header and the composer
-  // call it "FangBot" while the roster row next to it shows the name the bot
+  // call it by the default name while the roster row next to it shows the name the bot
   // actually goes by.
   const bot = botId
     ? bots.find((entry) => entry.id === botId)

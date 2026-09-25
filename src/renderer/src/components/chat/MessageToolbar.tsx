@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Popover } from '@base-ui/react/popover'
-import { ArrowTurnBackwardIcon, Copy01Icon, MoreHorizontalIcon, SmileIcon, Tick02Icon } from '@hugeicons/core-free-icons'
+import { ArrowTurnBackwardIcon, Copy01Icon, MoreHorizontalIcon, Share08Icon, SmileIcon, Tick02Icon } from '@hugeicons/core-free-icons'
 import type { Message } from '@/types'
 import { cn } from '@/lib/cn'
 import { Icon, Menu, Tooltip } from '@/components/primitives'
 import { REACTION_EMOJIS, useReactionsStore } from '@/stores/reactions.store'
+import { shareCard } from '@/stores/share-card.store'
 
 /** One shared empty list: a fresh [] per selector call would loop zustand's store subscription. */
 const NONE: string[] = []
@@ -12,7 +13,8 @@ const BUTTON = 'flex size-6 items-center justify-center rounded-full text-conten
 
 /**
  * Muse's message toolbar (IconRailButton size 24, borderless): React (agent
- * messages), Reply, Copy, More — beside the bubble, shown on hover or focus.
+ * messages), Reply, Copy, Share (agent answers), More — beside the bubble,
+ * shown on hover or focus.
  */
 export function MessageToolbar({ message, isUser, onReply }: { message: Message; isUser: boolean; onReply?: (message: Message) => void }) {
   const [copied, setCopied] = useState(false)
@@ -20,6 +22,8 @@ export function MessageToolbar({ message, isUser, onReply }: { message: Message;
   const reactions = useReactionsStore((state) => state.byMessage[message.id] ?? NONE)
   const toggle = useReactionsStore((state) => state.toggle)
   const canReact = !isUser && message.status !== 'failed'
+  const canShare = canReact && message.status !== 'streaming' && Boolean(message.content.trim())
+  const share = (): void => shareCard({ kind: 'answer', body: message.content })
 
   function copy(): void {
     void navigator.clipboard.writeText(message.content).then(() => {
@@ -61,10 +65,12 @@ export function MessageToolbar({ message, isUser, onReply }: { message: Message;
       )}
       {onReply && <Tooltip content="Reply"><button type="button" aria-label="Reply" onClick={() => onReply(message)} className={BUTTON}><Icon icon={ArrowTurnBackwardIcon} size={16} /></button></Tooltip>}
       <Tooltip content={copied ? 'Copied' : 'Copy'}><button type="button" aria-label="Copy" onClick={copy} className={BUTTON}><Icon icon={copied ? Tick02Icon : Copy01Icon} size={16} /></button></Tooltip>
+      {canShare && <Tooltip content="Share as image"><button type="button" aria-label="Share" onClick={share} className={BUTTON}><Icon icon={Share08Icon} size={16} /></button></Tooltip>}
       <Menu align="end" trigger={<button type="button" aria-label="More options" className={BUTTON}><Icon icon={MoreHorizontalIcon} size={16} /></button>}>
         <p className="px-3 py-1.5 text-caption text-content-secondary">{new Date(message.created_at).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</p>
         {onReply && <Menu.Item onClick={() => onReply(message)}>Reply</Menu.Item>}
         <Menu.Item onClick={copy}>Copy</Menu.Item>
+        {canShare && <Menu.Item onClick={share}>Share</Menu.Item>}
       </Menu>
     </div>
   )

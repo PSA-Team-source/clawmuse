@@ -18,7 +18,7 @@ const NAV = [
   { label: 'Library', path: '/library' },
 ] as const
 
-/** Muse's compact navigation model, backed by Fangbot's real local runtime. */
+/** Muse's compact navigation model, backed by the real local runtime. */
 export function ClawMuseRail({ onOpenSearch }: { onOpenSearch: () => void }) {
   const navigate = useNavigate()
   const location = useLocation()

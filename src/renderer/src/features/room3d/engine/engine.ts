@@ -2,8 +2,7 @@
  * engine.ts — desktop WebGL renderer + render loop + raycast + camera control + dispose
  *
  * Ported from mobile `src/features/room3d/engine/engine.ts` (itself ported from
- * web Scene.tsx, platformdtc-master/components/game2/Scene.tsx — animation loop
- * lines 1047–1229). Desktop-specific changes vs. the mobile expo-gl engine:
+ * the web Scene.tsx animation loop). Desktop-specific changes vs. the mobile expo-gl engine:
  *
  *   - Real `HTMLCanvasElement` + `THREE.WebGLRenderer({ canvas, antialias: true,
  *     alpha: false })`. The mobile version had to fake a `canvas` object because

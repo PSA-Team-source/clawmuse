@@ -1,7 +1,7 @@
 import type { Message, QueuedMessage, Session } from '@/types'
 
 /**
- * Non-secret cache, the desktop stand-in for mobile's MMKV `localfang-cache`.
+ * Non-secret cache, the desktop stand-in for a mobile MMKV cache.
  *
  * localStorage is synchronous and plain text — fine for what goes here
  * (sessions, recent messages, UI prefs) and forbidden for anything the mobile

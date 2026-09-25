@@ -4,8 +4,8 @@
  * The server is still the authority — this exists so a broken frontmatter is
  * caught while typing rather than after a round trip that returns a bare error
  * string. Keep the rules byte-compatible with
- * `_LOCALFANG/server/src/services/shared-skills.js`, or the editor will cheerfully
- * accept documents the API rejects.
+ * the gateway's skill loader, or the editor will cheerfully accept documents it
+ * rejects.
  */
 
 export interface SkillMdValidation {

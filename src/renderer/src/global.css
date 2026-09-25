@@ -155,14 +155,14 @@
       16px default.
 
    `themes: false` because every stock theme would fight the tokens below; the
-   one theme declared here maps daisyUI's semantic slots onto FangBot's palette,
-   so `btn-primary` is FangBot indigo and nothing has to be overridden. */
+   one theme declared here maps daisyUI's semantic slots onto ClawMuse's palette,
+   so `btn-primary` is the ClawMuse accent and nothing has to be overridden. */
 @plugin "daisyui" {
   themes: false;
 }
 
 @plugin "daisyui/theme" {
-  name: 'fangbot';
+  name: 'clawmuse';
   default: true;
   color-scheme: light;
 
@@ -208,7 +208,7 @@
   --size-field: 0.25rem;
 
   --border: 1px;
-  /* No emboss. FangBot's depth comes from translucency and shadow, and
+  /* No emboss. ClawMuse's depth comes from translucency and shadow, and
      daisyUI's inset highlight fights the glass materials. */
   --depth: 0;
   --noise: 0;
@@ -226,7 +226,7 @@
   font-display: swap;
 }
 
-/* ── FangBot design tokens ──────────────────────────────────────────────────
+/* ── ClawMuse design tokens ──────────────────────────────────────────────────
    Ported verbatim from the mobile app's `src/global.css` so desktop and mobile
    render the same product. Tailwind v4 turns these into utilities:
    --color-X → bg-X / text-X / border-X ; --radius-X → rounded-X ; --text-X → text-X */

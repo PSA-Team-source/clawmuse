@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { BrowserWindow, dialog } from 'electron'
 import log from 'electron-log/main.js'
 import electronUpdater from 'electron-updater'
@@ -15,15 +17,19 @@ let interactive = false
 let channelMissingReported = false
 
 /**
- * The update feed, if this build has one.
+ * An explicit update feed, for distributors and staging channels.
  *
- * A source build has none, and that is the normal case for an open-source app
- * someone cloned and ran: `electron-builder` only writes `app-update.yml` into
- * the bundle when a `publish` target is configured, and without it every launch
- * throws on a file that was never meant to exist. Distributors set
- * `CLAWMUSE_UPDATE_FEED` (formerly `LOCALFANG_UPDATE_FEED`) at build time to point at their own releases.
+ * Release builds need none: `electron-builder.yml` publishes to GitHub
+ * Releases, which writes `app-update.yml` into the bundle, and electron-updater
+ * reads it on its own. A source build has no such file, so it does not
+ * self-update rather than throwing on every launch.
  */
-const UPDATE_FEED = (process.env.CLAWMUSE_UPDATE_FEED ?? process.env.LOCALFANG_UPDATE_FEED)?.trim()
+const UPDATE_FEED = process.env.CLAWMUSE_UPDATE_FEED?.trim()
+
+/** Written by electron-builder when the build has a `publish` target. */
+function hasBundledFeed(): boolean {
+  return existsSync(join(process.resourcesPath, 'app-update.yml'))
+}
 
 /**
  * A feed that has not been published yet, rather than a broken update.
@@ -56,25 +62,19 @@ export function initUpdater(): void {
     log.info('[updater] disabled in development')
     return
   }
-  if (!UPDATE_FEED) {
-    log.info('[updater] no update feed configured — this build does not self-update')
+  if (UPDATE_FEED) {
+    autoUpdater.setFeedURL({ provider: 'generic', url: UPDATE_FEED })
+    log.info(`[updater] feed overridden → ${UPDATE_FEED}`)
+  } else if (!hasBundledFeed()) {
+    log.info('[updater] no update feed in this build — it does not self-update')
     return
   }
-  autoUpdater.setFeedURL({ provider: 'generic', url: UPDATE_FEED })
 
   autoUpdater.logger = log
   // Download in the background, but never restart under the user — a surprise
   // relaunch mid-conversation would drop a streaming agent response.
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
-
-  // Lets a build be pointed at a staging or self-hosted channel without a
-  // rebuild — the packaged default lives in `electron-builder.yml`.
-  const feedUrl = (process.env.CLAWMUSE_UPDATE_FEED_URL ?? process.env.LOCALFANG_UPDATE_FEED_URL)
-  if (feedUrl) {
-    autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl })
-    log.info(`[updater] feed overridden → ${feedUrl}`)
-  }
 
   autoUpdater.on('checking-for-update', () => broadcast({ state: 'checking' }))
   autoUpdater.on('update-available', (info) => broadcast({ state: 'available', version: info.version }))

@@ -7,6 +7,7 @@
  */
 
 import type { AssistantJob, AssistantSettings, AssistantState } from './assistant'
+import type { ShareCardAction, ShareCardInput, ShareCardRender } from './share-card'
 
 /** Keys allowed in the OS-encrypted credential store. Deliberately closed: the
  *  renderer must not be able to make the main process write arbitrary files. */
@@ -32,8 +33,7 @@ export const DEFAULT_MODEL_BY_PROVIDER: Record<string, string> = {
   anthropic: 'anthropic/claude-opus-4-8',
   openai: 'openai/gpt-5.5',
   // Free by default: ClawMuse is free, and a key with no credits (common for a
-  // new OpenRouter account) fails every message on a paid model. Same free
-  // model FangBot runs; paid ones are one pick away in the model menu.
+  // new OpenRouter account) fails every message on a paid model. Paid ones are one pick away in the model menu.
   openrouter: 'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free',
   zai: 'zai/glm-5.2',
   // Zen's $0 catalogue model. OpenCode refuses its free tier outside OpenCode
@@ -424,6 +424,13 @@ export interface IpcInvokeMap {
   'assistant:feed-unit': { req: [id: string, action: 'like' | 'unlike' | 'hide']; res: AssistantState }
   'assistant:hide-idea': { req: string; res: AssistantState }
   'assistant:import-legacy': { req: unknown; res: AssistantState }
+
+  // ── Share cards (drawn locally by main; nothing is uploaded) ──────────────
+  'share:render': { req: ShareCardInput; res: ShareCardRender }
+  'share:copy': { req: string; res: ShareCardAction }
+  'share:save': { req: string; res: ShareCardAction }
+  /** macOS share sheet; `{ ok: false }` elsewhere. */
+  'share:system': { req: string; res: ShareCardAction }
 
   'updater:check': { req: void; res: void }
   'updater:install': { req: void; res: void }

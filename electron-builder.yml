@@ -66,7 +66,7 @@ mac:
     NSMicrophoneUsageDescription: ClawMuse uses the microphone for Push-to-Talk voice input.
     NSCameraUsageDescription: ClawMuse uses the camera to capture and send images to your AI agent.
     LSUIElement: false
-    # Deep link — fangbot://
+    # Deep link — clawmuse:// (localfang:// kept for links minted before the rename)
     CFBundleURLTypes:
       - CFBundleURLName: ClawMuse Protocol
         CFBundleURLSchemes: [clawmuse, localfang]

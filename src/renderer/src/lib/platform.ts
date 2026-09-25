@@ -6,6 +6,9 @@ const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent
 
 export const IS_WINDOWS = /Windows/i.test(ua)
 
+/** macOS: the only platform with a native share sheet (AirDrop, Messages, Mail…). */
+export const IS_MAC = /Macintosh|Mac OS X/i.test(ua)
+
 /** What to call the user's computer in copy: "this Mac" / "this PC". */
 export const DEVICE = IS_WINDOWS ? 'PC' : 'Mac'
 
