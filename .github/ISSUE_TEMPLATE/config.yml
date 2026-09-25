@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/PSA-Team-source/clawmuse/security/advisories/new
+    about: Report security problems privately, never in a public issue.
+  - name: OpenClaw runtime
+    url: https://github.com/openclaw/openclaw/issues
+    about: Problems with the agent runtime itself belong in the OpenClaw project.

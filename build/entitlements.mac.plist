@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Electron ships a JIT JavaScript engine; the hardened runtime blocks it
+       without these two. Both are required or the app crashes on launch. -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+
+  <!-- Push-to-Talk voice input -->
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
+  <!-- Image attachments captured from the webcam -->
+  <key>com.apple.security.device.camera</key>
+  <true/>
+
+  <!-- Outbound HTTPS/WSS to localfang.ai -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+</dict>
+</plist>

@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest something ClawMuse should do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The job or problem, in your own words. What happens today, and why is it not enough?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+      description: How it could work from your point of view. Sketches and screenshots welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Workarounds you use now, or other ways to solve it.
+  - type: checkboxes
+    id: openclaw
+    attributes:
+      label: Runtime
+      description: ClawMuse is built on OpenClaw. Features of the agent runtime itself belong in the OpenClaw project.
+      options:
+        - label: This is about the ClawMuse app (its screens, setup or desktop integration), not the OpenClaw runtime.

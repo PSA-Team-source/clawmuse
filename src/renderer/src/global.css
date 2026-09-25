@@ -1,0 +1,736 @@
+@import 'tailwindcss';
+
+.muse-appearance-control { display: flex; padding: 2px; border-radius: 20px; background: var(--color-fill-strong); }
+.muse-appearance-control button { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: var(--color-content-secondary); }
+.muse-appearance-control button[aria-pressed='true'] { background: var(--color-bg-panel); color: var(--color-content-primary); box-shadow: 0 1px 4px #0000001a; }
+.muse-appearance-control button:focus-visible { outline: 2px solid var(--color-muse-blue); outline-offset: 2px; }
+/* Muse's settings dropdowns: value + chevron, no field chrome. */
+.muse-plain-select [role='combobox'] { border-color: transparent; background: transparent; box-shadow: none; }
+/* Muse route header (lg-title-3-emphasized 34/40/600, title-3 18/26) and section titles (title-3-emphasized). */
+.muse-route-title { font-size: 34px; line-height: 40px; font-weight: 600; }
+.muse-route-description { font-size: 18px; line-height: 26px; }
+.muse-unit-title { font-size: 18px; line-height: 26px; font-weight: 500; }
+.muse-section-title { font-size: 18px; line-height: 26px; font-weight: 600; }
+/* Muse status pill (HatchAvatarHost status-pill): the agent name + state under its avatar. */
+.muse-status-pill { display: flex; width: fit-content; max-width: 20rem; flex-direction: column; align-items: center; overflow: hidden; padding: 6px 10px; border-radius: 18px; background: var(--color-bg-panel); box-shadow: var(--shadow-composer); }
+/* The chat-nav variant sits tighter under its 52pt avatar (measured on Muse). */
+.muse-status-pill-compact { padding-top: 4px; padding-bottom: 4px; }
+/* Muse status Identity tab (HatchStatusIdentityTab / HatchIdentitySpecialFiles): 22px squircle cards, a 20/24 emoji disc,
+   and the SOUL / MEMORY file cards over their mesh-gradient colours (static — Muse's own fallback when the shader is off). */
+.muse-identity-card, .muse-file-card { border-radius: 22px; }
+.muse-identity-emoji { font-size: 20px; line-height: 24px; }
+.muse-file-card-kicker { font-family: var(--font-mono); font-size: 10px; line-height: 12px; text-transform: uppercase; color: rgb(255 255 255 / 0.7); }
+.muse-file-card-date { position: relative; font-family: var(--font-mono); font-size: 14px; line-height: 16px; color: rgb(255 255 255 / 0.7); }
+.muse-file-card-date svg { color: rgb(255 255 255 / 0.5); }
+/* Muse hatch-chat-nav-fade: panel background to transparent over the top 112px of a chat. */
+.muse-chat-nav-fade { background: linear-gradient(to bottom, var(--color-bg-base), transparent); }
+@keyframes muse-typing-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* The bubble's slot carries Muse's width limit so the toolbar and reaction badge can sit against the bubble. */
+.muse-bubble-slot { max-width: min(520px, 84%); }
+.muse-bubble-slot > .muse-chat-bubble { max-width: 100%; }
+/* Muse's composer chrome: rounded-32, 12px inset, 15/24 text (EctoResizingTextArea). */
+.muse-composer { border-radius: 32px; }
+/* Muse's inline approval card (rounded-24): an agent question waiting above the composer. */
+.muse-question-card { border-radius: 24px; }
+.muse-composer textarea { font-size: 15px; line-height: 24px; min-height: 24px; }
+/* Muse's composer send/stop: painted in the user's bubble colour. */
+.muse-primary-action { border-color: transparent; background: var(--color-bg-mine); color: var(--color-content-mine); }
+.muse-primary-action:enabled:hover { background: var(--color-bg-mine); filter: brightness(0.85); }
+:root[data-appearance='dark'] .muse-primary-action:enabled:hover { filter: brightness(1.3); }
+.muse-primary-action:disabled { background: var(--color-bg-mine); color: var(--color-content-mine); opacity: 0.4; }
+.muse-theme-swatches { display: flex; align-items: center; gap: 8px; padding: 6px; }
+.muse-theme-swatch { position: relative; display: block; width: 24px; height: 24px; flex-shrink: 0; cursor: pointer; }
+.muse-theme-swatch > span:first-of-type { display: block; width: 100%; height: 100%; border-radius: 50%; border: 1px solid var(--color-line); }
+.muse-theme-swatch input:checked + span { box-shadow: inset 0 0 0 2px var(--color-muse-blue); }
+.muse-theme-swatch input:focus-visible + span { outline: 2px solid var(--color-muse-blue); outline-offset: 2px; }
+.muse-theme-swatch-check { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; background: var(--color-bg-base); color: var(--color-content-primary); box-shadow: 0 0 0 1px var(--color-line); }
+
+:root[data-appearance='dark'] {
+  color-scheme: dark;
+  --color-bg-base: #181819;
+  --color-bg-panel: #28292b;
+  --color-bg-surface: #181819;
+  --color-bg-card: #1f1f20;
+  --color-bg-input: #28292b;
+  --color-bg-mine: #727b96;
+  --color-content-mine: #111112;
+  --color-content-primary: #ffffff;
+  --color-content-secondary: #f2f7ff87;
+  --color-content-body: #f2f7ffb3;
+  --color-content-tertiary: #f1f6ff61;
+  --color-content-muted: #f1f6ff61;
+  --color-content-disabled: #f0f6ff4f;
+  --color-content-faint: #f0f6ff4f;
+  --color-line: #ffffff1a;
+  --color-line-hairline: #ffffff12;
+  --color-line-subtle: #ffffff17;
+  --color-line-strong: #ffffff33;
+  --color-fill: #ffffff0d;
+  --color-fill-subtle: #ffffff08;
+  --color-fill-raised: #ffffff1a;
+  --color-fill-strong: #ffffff26;
+  --color-fill-stronger: #ffffff33;
+  --color-fill-strongest: #ffffff40;
+  --color-fill-accent: #ffffff1a;
+  --color-code-fg: #ffffff;
+  --color-muse-blue: #1793ff;
+  --color-switch-off: #28292b;
+  --color-primary: #ffffff;
+  --color-primary-dark: #e9eaeb;
+  --color-primary-light: #ffffff;
+  --color-primary-content: #181819;
+  --color-base-100: #181819;
+  --color-base-200: #1f1f20;
+  --color-base-300: #28292b;
+  --color-base-content: #ffffff;
+}
+
+.muse-feed-prompt { border-radius: 30px; }
+/* Muse Quick Search (HatchQuickSearchFrame / HatchQuickSearch): rounded-24 popover, header px-4.5 pt-6 pb-4.5,
+   a 17/22 query field, rounded-12 rows and caption-2 11/13 subtitles. */
+.muse-quick-search { border-radius: 24px; }
+.muse-quick-search-header { padding: 24px 18px 18px; }
+.muse-quick-search-input { font-size: 17px; line-height: 22px; }
+.muse-quick-search-item { border-radius: 12px; }
+.muse-quick-search-subtitle { font-size: 11px; line-height: 13px; }
+/* Settings at Muse 2.2's type scale: subheadline 14/20 rows, caption-1 12/16
+   subtitles, title-3 18/26 semibold page title in a 60px header. */
+.muse-settings-content { --text-body: 14px; --text-body--line-height: 20px; --text-body-sm: 14px; --text-body-sm--line-height: 20px; --text-caption: 12px; --text-caption--line-height: 16px; --text-title-1: 18px; --text-title-1--line-height: 26px; --muse-card: #0000000d; --muse-divider: #0000000a; }
+:root[data-appearance='dark'] .muse-settings-content { --muse-card: #ffffff1f; --muse-divider: #ffffff0f; }
+.muse-settings-content > div > .drag.h-11 { height: 17px; }
+.muse-settings-content h1 { font-weight: 600; }
+.muse-settings-content .no-drag { max-width: 620px; margin-left: 0; gap: 16px; padding-left: 24px; padding-right: 24px; }
+.muse-settings-content .settings-group { margin-bottom: 0; }
+.muse-settings-content .settings-group > div:first-child:not(:last-child) { padding-left: 0; margin-bottom: 6px; }
+.muse-settings-content .settings-group > div:first-child:not(:last-child) > * { font-size: 14px; line-height: 20px; font-weight: 600; text-transform: none; letter-spacing: normal; color: var(--color-content-secondary); }
+.muse-settings-content .settings-group > div:last-child { background: var(--muse-card); border: 0; border-radius: 16px; padding: 6px; }
+.muse-settings-content .settings-row { position: relative; min-height: 44px; padding: 8px 12px; border-bottom: 0; border-radius: 12px; }
+.muse-settings-content .settings-row:is(button):hover { background: var(--muse-card); }
+.muse-settings-content .settings-row + .settings-row::before { content: ''; position: absolute; top: 0; left: 12px; right: 12px; height: 1px; background: var(--muse-divider); }
+.muse-shortcuts-dialog { --text-headline: 13px; --text-headline--line-height: 18px; border-radius: 24px; }
+.muse-shortcuts-dialog > div:first-child { margin-bottom: 14px; align-items: center; }
+.muse-shortcuts-dialog button[aria-label="Close dialog"] { padding: 3px; background: var(--color-bg-panel); box-shadow: 0 1px 6px rgb(0 0 0 / 0.10); }
+/* Muse's chat bubble (BUBBLE_BOX_CLASS + BUBBLE_TYPE_CLASS): 16/22 text, 11x15 inset, 44px min, 22px radius, 520px max. */
+.muse-chat-bubble { --text-body: 16px; --text-body--line-height: 22px; --text-caption: 16px; --text-caption--line-height: 22px; min-height: 44px; max-width: min(520px, 84%); padding: 11px 15px; border-radius: 22px; justify-content: center; }
+.muse-chat-bubble > div > p:first-child { margin-top: 0; }
+.muse-chat-bubble > div > p:last-child { margin-bottom: 0; }
+.muse-feed-dialog { --radius-field: 14px; --text-headline: 13px; --text-headline--line-height: 18px; --text-body-sm: 12px; --text-body-sm--line-height: 16px; border-radius: 24px; }
+.muse-feed-dialog > div:first-child { margin-bottom: 12px; position: relative; padding-right: 24px; }
+.muse-feed-dialog > div:first-child p { color: var(--color-content-secondary); }
+.muse-feed-dialog button[aria-label="Close dialog"] { position: absolute; right: -4px; top: -4px; background: var(--color-bg-panel); box-shadow: 0 1px 6px rgb(0 0 0 / 0.10); padding: 3px; }
+
+.muse-goal-dialog { --text-headline: 13px; --text-headline--line-height: 20px; border-radius: 24px; background: var(--color-bg-panel); box-shadow: 0 6px 20px rgb(0 0 0 / 0.18), 0 2px 6px rgb(0 0 0 / 0.10); }
+.muse-goal-dialog > div:first-child { margin-bottom: 10px; align-items: center; }
+.muse-goal-dialog button[aria-label="Close dialog"] { background: var(--color-bg-panel); box-shadow: 0 1px 6px rgb(0 0 0 / 0.10); padding: 3px; }
+
+/* Library at Muse's real scale: route title lg-title-3 34/40, sidebar rows subheadline 14/20. */
+.muse-library {
+  --text-title-1: 34px;
+  --text-title-1--line-height: 40px;
+  --text-caption: 14px;
+  --text-caption--line-height: 20px;
+}
+.muse-library h1 { font-weight: 600; }
+.muse-library > aside > input { height: 36px; padding-left: 32px; }
+.muse-library > aside > h2 { margin-top: 20px; padding-left: 8px; font-size: 13px; line-height: 18px; }
+.muse-library > aside > button { height: 32px; }
+
+/* ── daisyUI ────────────────────────────────────────────────────────────────
+   The component layer. It is CSS only — no JavaScript, no focus management, no
+   keyboard handling — which is exactly why it sits *alongside* Base UI rather
+   than replacing it: Base UI supplies the behaviour, daisyUI supplies one
+   consistent set of shapes and sizes for it to wear.
+
+   Two things it fixes that hand-written classes had not:
+
+   1. **One button scale.** `btn-xs/sm/md/lg/xl` all derive from `--size-field`,
+      so there is no way to invent a 31px or a 40px button by accident. Measured
+      before this: thirty-two distinct button signatures across seventeen
+      screens, including an h=31 and two different weights on the same geometry.
+
+   2. **Three radii, not six plus a synonym.** `selector` for pills and toggles,
+      `field` for buttons and inputs, `box` for cards and dialogs. The app had
+      `rounded-full` in 552 places and `rounded-pill` (24px) in 88 — two names
+      for the same intent — plus a stray `rounded-2xl` leaking Tailwind's own
+      16px default.
+
+   `themes: false` because every stock theme would fight the tokens below; the
+   one theme declared here maps daisyUI's semantic slots onto FangBot's palette,
+   so `btn-primary` is FangBot indigo and nothing has to be overridden. */
+@plugin "daisyui" {
+  themes: false;
+}
+
+@plugin "daisyui/theme" {
+  name: 'fangbot';
+  default: true;
+  color-scheme: light;
+
+  /* Surfaces, darkest first — daisyUI's `base-100` is the page, and each step
+     up is a layer nearer the viewer. */
+  --color-base-100: #ffffff;
+  --color-base-200: #f7f7f5;
+  --color-base-300: #ececea;
+  --color-base-content: #171717;
+
+  /* The primary control is a white pill with black text — there is no brand
+     hue in this product's chrome, and colour is reserved for identity (a bot's
+     avatar) and for attention (something needs you). */
+  --color-primary: #171717;
+  --color-primary-content: #ffffff;
+  --color-secondary: #f0f0ee;
+  --color-secondary-content: #171717;
+
+  --color-accent: #f5a623;
+  --color-accent-content: #0a0a0a;
+
+  --color-neutral: #ececea;
+  --color-neutral-content: #171717;
+
+  --color-info: #06b6d4;
+  --color-info-content: #050810;
+  --color-success: #22c55e;
+  --color-success-content: #050810;
+  --color-warning: #f59e0b;
+  --color-warning-content: #050810;
+  --color-error: #ef4444;
+  --color-error-content: #ffffff;
+
+  /* Fully round for anything pill-shaped, so `rounded-full` and a 24px
+     "pill" can no longer disagree. `field` and `box` are the values the app
+     already used for buttons and cards — 12px and 14px — so nothing moves. */
+  --radius-selector: calc(infinity * 1px);
+  --radius-field: 10px;
+  --radius-box: 16px;
+
+  /* One multiplier drives every control height: 24 / 32 / 40 / 48 / 56. */
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+
+  --border: 1px;
+  /* No emboss. FangBot's depth comes from translucency and shadow, and
+     daisyUI's inset highlight fights the glass materials. */
+  --depth: 0;
+  --noise: 0;
+}
+
+/* Orbitron — the cyberpunk display face used for Room3D chrome ("AGENT ROOM",
+   agent name plates, the INITIALIZING splash). Self-hosted because a packaged
+   Electron app has no network guarantee and the CSP blocks remote font hosts.
+   Google serves one variable file covering 400–900. */
+@font-face {
+  font-family: 'Orbitron';
+  src: url('./assets/fonts/orbitron-var.woff2') format('woff2-variations');
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── FangBot design tokens ──────────────────────────────────────────────────
+   Ported verbatim from the mobile app's `src/global.css` so desktop and mobile
+   render the same product. Tailwind v4 turns these into utilities:
+   --color-X → bg-X / text-X / border-X ; --radius-X → rounded-X ; --text-X → text-X */
+@theme {
+  /* Neutral, on purpose.
+     
+     The chrome carries no brand hue at all: surfaces are greys, text is white
+     at varying opacity, and the only saturated colour in the whole app belongs
+     to a bot's own avatar or to something that needs the user. A palette that
+     tints the window competes with the one signal that matters — which
+     teammate is speaking. */
+  --color-primary: #171717;
+  --color-primary-dark: #000000;
+  --color-primary-light: #333333;
+  /* Agent accent colours for the 3D room. `seam-indigo` used to sit here as a
+     second name for `--color-primary`, with the same hex and no callers. */
+  --color-seam-violet: #8b5cf6;
+  --color-seam-cyan: #06b6d4;
+  --color-seam-emerald: #10b981;
+  /* Amber is "this needs you" — an approval, a routine that stopped. It is
+     deliberately the only warm colour in the chrome. */
+  --color-seam-orange: #f5a623;
+  --color-seam-red: #ef4444;
+  --color-muse-blue: #0064d4;
+  /* Muse's switch track when off (fill-secondary). */
+  --color-switch-off: #f3f4f5;
+
+  /* The primary control is a solid white pill; the "gradient" is flat on
+     purpose, so `GradientButton` keeps its name and its API while rendering
+     the shape this product actually uses. */
+  --color-cta-from: #171717;
+  --color-cta-to: #000000;
+
+  /* Solid backgrounds — a grey ramp with no hue in it. */
+  --color-bg-base: #fcfcfc;
+  --color-bg-panel: #ffffff;
+  --color-bg-surface: #fafaf9;
+  --color-bg-card: #e9eaeb;
+  --color-bg-input: #f7f7f5;
+  /* The user's own turns — Muse's Default theme color. appearance.store
+     overrides both at runtime from the chosen Theme color. */
+  --color-bg-mine: #e0e5f3;
+  --color-content-mine: #111112;
+
+  /* Text on dark — white opacity ramp */
+  --color-content-primary: #111112;
+  --color-content-secondary: #00040996;
+  --color-content-body: rgba(23, 23, 23, 0.64);
+  --color-content-tertiary: #0007115e;
+  --color-content-muted: rgba(23, 23, 23, 0.42);
+  --color-content-disabled: rgba(23, 23, 23, 0.32);
+  --color-content-faint: rgba(23, 23, 23, 0.28);
+
+  /* Borders / dividers */
+  --color-line: rgba(23, 23, 23, 0.12);
+  --color-line-hairline: rgba(23, 23, 23, 0.07);
+  --color-line-subtle: rgba(23, 23, 23, 0.09);
+  --color-line-strong: rgba(23, 23, 23, 0.18);
+
+  /* Translucent fills. The last two rungs exist because the surfaces that
+     needed them were written as `bg-bg-panel/[0.08]` and `bg-bg-panel/[0.12]` — the
+     ramp was real, it just had no names for its top end. */
+  --color-fill: rgba(23, 23, 23, 0.04);
+  --color-fill-subtle: rgba(23, 23, 23, 0.025);
+  --color-fill-raised: #f3f4f5;
+  --color-fill-strong: rgba(23, 23, 23, 0.08);
+  --color-fill-stronger: rgba(23, 23, 23, 0.12);
+  --color-fill-strongest: rgba(23, 23, 23, 0.2);
+  /* The selected row. Neutral, because a tinted selection would put a brand
+     colour next to the avatars, which are the only colours worth reading. */
+  --color-fill-accent: rgba(23, 23, 23, 0.075);
+
+  /* The colour the 3D scene clears to. The boot overlay that covers the canvas
+     was painting #0a0a0f over a scene clearing to #08080f, so the two did not
+     line up while the overlay faded. One value, used by both. */
+  --color-room-void: #08080f;
+
+  /* The dimming layer behind a modal or the command palette. One value, so two
+     overlays opened side by side dim the app by the same amount — they used to
+     disagree, 0.5 against 0.6. */
+  --color-scrim: #0000001a;
+  --color-scrim-strong: rgba(0, 0, 0, 0.8);
+
+  /* Code foreground, deliberately short of pure white: #fff on a near-black
+     code block glares, and this is the one place the app reads long unbroken
+     runs of monospace. */
+  --color-code-fg: #252525;
+
+  /* Semantic status */
+  --color-success: #22c55e;
+  --color-success-bg: rgba(34, 197, 94, 0.12);
+  --color-success-border: rgba(34, 197, 94, 0.25);
+  --color-warning: #f59e0b;
+  --color-warning-bg: rgba(245, 158, 11, 0.12);
+  --color-warning-border: rgba(245, 158, 11, 0.25);
+  --color-error: #ef4444;
+  --color-error-bg: rgba(239, 68, 68, 0.1);
+  --color-error-border: rgba(239, 68, 68, 0.25);
+  --color-info: #06b6d4;
+  --color-info-bg: rgba(6, 182, 212, 0.12);
+  --color-info-border: rgba(6, 182, 212, 0.25);
+
+  /* Channel brand colors */
+  --color-channel-whatsapp: #25d366;
+  --color-channel-telegram: #229ed9;
+  --color-channel-discord: #5865f2;
+
+  /* Radii — daisyUI owns the three that matter, and these are the two below its
+     smallest rung.
+
+     The scale is now `xs` → `sm` → `field` (12px) → `box` (14px) → `full`.
+     Before daisyUI there were seven values in use *and* a synonym: 552 uses of
+     `rounded-full` against 88 of a 24px `rounded-pill` meaning the same thing,
+     plus a `rounded-2xl` leaking Tailwind's own 16px default into a codebase
+     that thought it had replaced the radius scale.
+
+     `field` and `box` come from the daisyUI theme above, so a button and a
+     `.btn` cannot disagree about their corner. These two stay here because
+     daisyUI has no rung this small: a chat bubble's tail is 4px and a meter cap
+     is 6px. */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  /* A message bubble. Larger than a card on purpose — it is the one shape in
+     the app that has to read as speech rather than as a container. */
+  --radius-bubble: 18px;
+
+  /* ── Content column widths ───────────────────────────────────────────────
+     Settings disagreed with itself: Settings, Model and Security laid out at
+     640px while Account, Notifications, Voice and About used 560px, so the
+     column visibly changed width as you moved between them. One value now.
+     Onboarding had five (420/440/480/520/720) for the same centred card. */
+  --container-form: 420px;
+  --container-content: 640px;
+  --container-wide: 720px;
+
+  /* ── Letter-spacing ──────────────────────────────────────────────────────
+     Two languages here. `label` is the uppercase eyebrow above a settings
+     group. The `display-*` rungs belong to the Orbitron chrome in the 3D room,
+     where wide tracking is the whole point — they were written as px, which
+     meant the same visual treatment had a different number at every size. */
+  --tracking-label: 0.08em;
+  --tracking-display: 0.15em;
+  --tracking-display-wide: 0.2em;
+  --tracking-display-wider: 0.36em;
+  --tracking-display-widest: 0.5em;
+
+  /* Monospace needs more leading than prose at the same size; one ratio covers
+     both the caption-sized and footnote-sized code blocks, which had drifted to
+     17px, 18px and 19px for the same job. */
+  --leading-code: 1.5;
+
+  /* An emoji standing in for an icon is display type, not body type, so it has
+     its own two sizes rather than borrowing a step from the text scale. */
+  --text-emoji: 26px;
+  --text-emoji-lg: 34px;
+
+  /* ── Spacing grid ────────────────────────────────────────────────────────
+     Tailwind derives every spacing utility from this one number: `p-2` is
+     `calc(var(--spacing) * 2)`. Stated in px rather than the default 0.25rem
+     because a packaged desktop app has a fixed root font size — px says what
+     the grid actually is instead of implying it scales with something.
+     Identical output; `p-1` = 4px, `p-2` = 8px, `p-3` = 12px. */
+  --spacing: 4px;
+
+  /* ── Type scale ──────────────────────────────────────────────────────────
+     Every step carries its own line-height and weight. Before this the whole
+     app inherited Tailwind preflight's flat `line-height: 1.5`, which is
+     roughly right for body copy and clearly wrong for display type — a 28px
+     title was getting 42px of leading.
+
+     The ratio now tightens as size grows, the way Apple's own text styles do
+     (11pt caption ≈ 1.45, 28pt title ≈ 1.21), and every value is an even
+     number of pixels so baselines land on whole pixels instead of the
+     fractional 16.5 / 19.5 the flat ratio produced.
+
+     The weights are defaults, not mandates: Tailwind resolves them through
+     `var(--tw-font-weight, …)`, so an explicit `font-bold` on the element
+     still wins. They exist so a new screen gets the right weight for free.
+
+     Letter-spacing is deliberately left alone — SF Pro applies its own
+     optical tracking at these sizes, and a second correction on top of it
+     fights the typeface rather than helping it. */
+  --text-micro: 11px;
+  --shadow-composer: 0 2px 8px rgb(0 0 0 / 0.08), 0 0 2px rgb(0 0 0 / 0.04);
+  /* Muse footnote-emphasized (13/18) and caption-1 (12/16). */
+  --text-muse-artifact-name: 13px;
+  --text-muse-artifact-name--line-height: 18px;
+  --text-muse-artifact-meta: 12px;
+  --text-muse-artifact-meta--line-height: 16px;
+  --text-micro--line-height: 16px;
+  --text-micro--font-weight: 400;
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+  --text-caption--font-weight: 400;
+  --text-footnote: 13px;
+  --text-footnote--line-height: 18px;
+  --text-footnote--font-weight: 400;
+  --text-body-sm: 14px;
+  --text-body-sm--line-height: 20px;
+  --text-body-sm--font-weight: 400;
+  --text-body: 16px; /* Muse text-body 16/22 */
+  --text-body--line-height: 22px;
+  --text-body--font-weight: 400;
+  /* `callout` (16px) and `subhead` (17px) are gone. Eleven steps was more than
+     the app could tell apart: those two carried nine usages between them, sat
+     one pixel from `body` and `headline`, and existed only because the mobile
+     scale they were ported from has them. */
+  --text-headline: 18px;
+  --text-headline--line-height: 24px;
+  --text-headline--font-weight: 600;
+  --text-title-3: 22px;
+  --text-title-3--line-height: 28px;
+  --text-title-3--font-weight: 700;
+  --text-title-2: 24px;
+  --text-title-2--line-height: 30px;
+  --text-title-2--font-weight: 700;
+  --text-title-1: 28px;
+  --text-title-1--line-height: 34px;
+  --text-title-1--font-weight: 700;
+
+  /* Desktop-only: the display face has no mobile counterpart to drift from. */
+  --font-display: 'Orbitron', system-ui, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
+}
+
+/* ── Contract tokens ────────────────────────────────────────────────────────
+   `static` because a plain `@theme` drops any variable no utility happens to
+   reference — verified against the built bundle, where the elevation and
+   easing tokens vanished entirely on the first pass. Anything read through
+   `var()` from hand-written CSS, an inline style or a motion transition has to
+   live here, or it is present in development and silently missing in
+   production. Utilities (`shadow-popup`, `ease-entrance`) still generate on
+   demand exactly as they would from a non-static block. */
+@theme static {
+  /* Elevation — four rungs named for the role rather than a size, because the
+     question a screen actually asks is "what is this floating above", not "how
+     big is the blur". On a near-black base a single soft shadow disappears, so
+     each rung layers a tight contact shadow under a wide ambient one.
+
+     `overlay` and `modal` reproduce exactly what `.glass-panel` and
+     `.glass-card` hardcode below, so adopting them there is a no-op. */
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 12px rgb(0 0 0 / 0.28);
+  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.4);
+  --shadow-popup: 0 4px 8px rgb(0 0 0 / 0.35), 0 16px 48px rgb(0 0 0 / 0.45);
+  --shadow-modal: 0 6px 16px #11111229, 0 8px 32px #1111121f;
+
+  /* Motion — the curves are asymmetric on purpose: things entering decelerate
+     into place, things leaving accelerate away, which is what makes a
+     dismissal feel decisive rather than reluctant. */
+  --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-entrance: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Duration is not a Tailwind namespace — `duration-fast` compiles to nothing
+     — so these are consumed as `duration-(--duration-normal)` in a class, or
+     `var(--duration-normal)` from CSS or a transition object. The numbers
+     mirror `design/tokens.ts` rather than starting a competing scale. */
+  --duration-instant: 100ms;
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    /* The window itself is vibrant (`vibrancy: 'under-window'`); a fully opaque
+       body would hide it, so the base colour is applied per-surface instead. */
+    background: transparent;
+  }
+
+  #root {
+    /* Base UI portals its popups to <body>, as siblings of #root. Giving #root
+       its own stacking context means a select, menu or tooltip paints above the
+       whole app without anyone having to guess a z-index that beats whatever
+       the screen underneath happens to use. */
+    isolation: isolate;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    color: var(--color-content-primary);
+    /* macOS text rendering — without this, white-on-near-black looks bolder
+       than the mobile app's rendering of the same type scale. */
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow: hidden; /* the app owns its own scroll containers */
+  }
+
+  /* A desktop app should not feel like a web page: no text selection except
+     where content is meant to be copied, and no drag-and-drop of the chrome. */
+  * {
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  input,
+  textarea,
+  [contenteditable],
+  .selectable {
+    user-select: text;
+  }
+
+  /* Slim dark scrollbars that match the fill ramp instead of macOS defaults. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-line);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-line-strong);
+    background-clip: content-box;
+  }
+
+  ::selection {
+    background: var(--color-fill-accent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* Frameless-window drag regions. `titleBarStyle: 'hiddenInset'` leaves the
+     whole title area inert unless we opt regions in. */
+  .drag {
+    -webkit-app-region: drag;
+  }
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  /* ── Materials ───────────────────────────────────────────────────────────
+     Named for thickness, the way Apple's are, rather than for the first thing
+     that happened to use them. `glass-panel` and `glass-card` described where
+     they were used, not what they were — which is how a fourth called
+     `glass-input` ended up with no blur in it at all and was not a material.
+
+     The mobile app layers real blur (iOS Liquid Glass / BlurView); on desktop
+     `backdrop-filter` is the faithful equivalent. Each one now spends the
+     elevation token matching how far it floats, rather than a hardcoded shadow
+     that happened to be written next to it. */
+  .material-thin {
+    background: var(--color-fill-strong);
+    border: 1px solid var(--color-line-strong);
+    backdrop-filter: blur(20px) saturate(140%);
+    box-shadow: var(--shadow-raised);
+  }
+  .material-regular {
+    background: var(--color-fill-subtle);
+    border: 1px solid var(--color-line);
+    backdrop-filter: blur(24px) saturate(140%);
+    box-shadow: var(--shadow-overlay);
+  }
+  .material-thick {
+    background: var(--color-bg-panel);
+    border: 1px solid var(--color-line-strong);
+    backdrop-filter: blur(28px) saturate(150%);
+    box-shadow: var(--shadow-modal);
+  }
+
+  /* ── Brand button variants ───────────────────────────────────────────────
+     daisyUI's `.btn` owns the geometry — height from `--size-field`, padding,
+     radius, weight, the disabled and active states — and exposes `--btn-color`
+     and `--btn-fg` as the way to recolour it. These three use that hook rather
+     than overriding the rule, so a button can never again disagree with the
+     scale about how tall it is.
+
+     Three roles, and the rule from the button pass still holds: orange means
+     "this does the thing", indigo means "this is selected". */
+
+  /* The primary CTA. The gradient is the one thing daisyUI has no slot for. */
+  .btn-cta {
+    --btn-fg: #ffffff;
+    background-image: linear-gradient(to right, var(--color-cta-from), var(--color-cta-to));
+    background-color: transparent;
+    border-color: transparent;
+  }
+  .btn-cta:not(:disabled):hover {
+    filter: brightness(1.08);
+  }
+  /* DaisyUI's disabled style swaps the label to a dark tint but leaves our
+     gradient, so a disabled CTA read black-on-black ("Save and start" on the
+     first screen a new user sees). Keep the white label; dim the whole button. */
+  .btn-cta:disabled {
+    color: #ffffff;
+    opacity: 0.4;
+  }
+
+  /* Secondary. A visible hairline over a faint fill — the border is deliberately
+     not the fill colour, which is why it is set separately from `--btn-color`. */
+  .btn-quiet {
+    --btn-color: var(--color-fill);
+    --btn-fg: var(--color-content-primary);
+    border-color: var(--color-line-strong);
+  }
+  .btn-quiet:not(:disabled):hover {
+    --btn-color: var(--color-fill-raised);
+  }
+
+  /* A pill that carries a selected state — filters, mode switches, tag rows. */
+  .btn-pill {
+    border-radius: var(--radius-selector);
+    --btn-color: var(--color-fill-raised);
+    --btn-fg: var(--color-content-secondary);
+    border-color: transparent;
+  }
+  .btn-pill[aria-pressed='true'],
+  .btn-pill[data-selected] {
+    --btn-color: var(--color-fill-accent);
+    --btn-fg: var(--color-primary-light);
+    border-color: color-mix(in oklab, var(--color-primary) 30%, transparent);
+  }
+
+  /* The edge highlight is what actually reads as thickness.
+     A pane of glass catches light along its top edge; that one inset hairline
+     does more for the illusion than any amount of blur, and it costs nothing.
+     Applied to the thicker two, because a thin material has no edge to catch. */
+  .material-regular,
+  .material-thick {
+    box-shadow:
+      inset 0 1px 0 0 var(--color-fill-strong),
+      var(--shadow-overlay);
+  }
+  .material-thick {
+    box-shadow:
+      inset 0 1px 0 0 var(--color-fill-stronger),
+      var(--shadow-modal);
+  }
+
+  .font-display {
+    font-family: var(--font-display);
+  }
+}
+
+@layer components {
+  /* Shared shimmer used by every skeleton, matching the mobile 1200ms token. */
+  @keyframes fb-shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--color-fill-subtle) 25%,
+      var(--color-fill-raised) 50%,
+      var(--color-fill-subtle) 75%
+    );
+    background-size: 200% 100%;
+    animation: fb-shimmer 1.2s linear infinite;
+  }
+
+  @keyframes fb-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
+
+  .animate-fb-pulse {
+    animation: fb-pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes fb-caret {
+    0%,
+    49% {
+      opacity: 1;
+    }
+    50%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  /*
+   * The streaming caret is a pseudo-element on whichever block markdown
+   * rendered last, so it trails the text instead of claiming its own line.
+   * `steps` rather than a fade: a terminal cursor snaps, it does not breathe.
+   */
+  .streaming-caret > *:last-child::after {
+    animation: fb-caret 1s step-end infinite;
+  }
+}

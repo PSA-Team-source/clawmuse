@@ -1,0 +1,113 @@
+appId: ai.clawmuse.desktop
+productName: ClawMuse
+copyright: Copyright © 2026 ClawMuse contributors
+
+directories:
+  buildResources: build
+  output: dist
+
+files:
+  - out/**
+  - '!**/*.map'
+  - '!**/{.eslintrc,.editorconfig,.prettierrc,tsconfig*.json}'
+
+# Copied beside app.asar rather than into it, so `resourcePath()` can address
+# them with a plain filesystem path. Tray/notification icons are read by native
+# code paths that do not go through Electron's asar-aware fs shim.
+extraResources:
+  - from: resources
+    to: resources
+    # The key monitor is a macOS binary; it ships with the mac build only (below).
+    filter: ['**/*', '!native/**']
+  # The pinned npm, as its published tarball (scripts/vendor-npm.mjs), so a Mac
+  # with no Node, npm, pnpm or bun can still install the OpenClaw runtime on
+  # first launch (install-cli.ts ensureBundledNpm). A tarball because
+  # electron-builder strips every node_modules folder it copies — the npm
+  # directory shipped without its bundled deps and died on its first require.
+  - from: vendor
+    to: vendor
+    filter: ['npm-*.tgz']
+
+afterPack: scripts/after-pack.mjs
+afterSign: scripts/after-sign.mjs
+
+# clawmuse:// deep links (OAuth returns, notification clicks). macOS declares
+# them in Info.plist below; this registers them with Windows at install.
+protocols:
+  - name: ClawMuse Protocol
+    schemes: [clawmuse, localfang]
+
+mac:
+  category: public.app-category.productivity
+  extraResources:
+    - from: resources/native
+      to: resources/native
+  # macOS 26 resolves app icons through CFBundleIconName → a layered asset in
+  # Assets.car; a plain .icns only reaches the compatibility path, which renders
+  # flat with no depth and no dark/tinted/clear appearance. Pointing `icon` at
+  # the Icon Composer package makes electron-builder run actool and write both.
+  # It also derives a legacy icon.icns from this — but only a 4-slot one, which
+  # scripts/after-pack.mjs replaces with the full set from build/icon.icns.
+  icon: build/icon.icon
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip # required by electron-updater for macOS differential updates
+      arch: [arm64, x64]
+  # Hardened runtime + notarization are required for distribution outside the
+  # App Store. Notarize reads APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID
+  # from the environment; set them in CI, otherwise the build stays unsigned.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: false
+  extendInfo:
+    NSMicrophoneUsageDescription: ClawMuse uses the microphone for Push-to-Talk voice input.
+    NSCameraUsageDescription: ClawMuse uses the camera to capture and send images to your AI agent.
+    LSUIElement: false
+    # Deep link — fangbot://
+    CFBundleURLTypes:
+      - CFBundleURLName: ClawMuse Protocol
+        CFBundleURLSchemes: [clawmuse, localfang]
+
+dmg:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+# Windows: a one-click, per-user installer — no admin prompt, no wizard pages
+# (the app's own first run is the onboarding). Signing reads CSC_LINK /
+# CSC_KEY_PASSWORD (or WIN_CSC_*) when set; unsigned builds show SmartScreen.
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: ClawMuse
+  # Chats, keys and settings survive an uninstall/reinstall; Settings → Data
+  # controls → Remove ClawMuse is the explicit way to delete them.
+  deleteAppDataOnUninstall: false
+
+# Release assets live on GitHub Releases. `.github/workflows/release.yml` builds
+# with `--publish never` and uploads the installers, the updater manifests
+# (latest-mac.yml / latest.yml) and SHA256SUMS itself, so a build never
+# publishes on its own. Configuring the provider still matters: it is what makes
+# electron-builder write the manifests and `app-update.yml`.
+publish:
+  provider: github
+  owner: PSA-Team-source
+  repo: clawmuse
+  releaseType: release

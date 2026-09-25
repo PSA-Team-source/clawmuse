@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ClawMuse</title>
+    <!--
+      Strict CSP. `connect-src` has to allow the backend origin plus its WSS
+      gateway; `frame-src` covers the noVNC Cloud Browser and Store Builder
+      theme previews, which are iframed rather than rebuilt natively.
+      No 'unsafe-eval' — three.js and our bundle do not need it.
+
+      `127.0.0.1` is listed alongside `localhost` deliberately: the local
+      gateway is addressed by IP, not by name, so that a hijacked `localhost`
+      entry in /etc/hosts cannot redirect the agent socket. CSP treats the two
+      as different origins, and without this line local mode cannot connect at
+      all — a failure that typecheck, unit tests and the build all pass.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        script-src 'self';
+        style-src 'self' 'unsafe-inline';
+        font-src 'self' data:;
+        img-src 'self' data: blob: https:;
+        media-src 'self' blob: data:;
+        connect-src 'self' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*;
+        worker-src 'self' blob:;
+        object-src 'none';
+        base-uri 'none';
+        form-action 'none';
+      "
+    />
+    <meta name="color-scheme" content="dark" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
