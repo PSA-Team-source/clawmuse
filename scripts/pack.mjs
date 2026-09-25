@@ -42,7 +42,9 @@ function hasActool() {
 const layered = path.join(projectDir, 'build', 'icon.icon')
 const classic = path.join(projectDir, 'build', 'icon.icns')
 
-const useLayered = hasActool() && existsSync(layered)
+// CLAWMUSE_MAC_ICON=icns forces the classic icon where actool exists but cannot
+// run a compile (GitHub's macOS runner: ibtoold crashes on a MediaToolbox symbol).
+const useLayered = process.env.CLAWMUSE_MAC_ICON !== 'icns' && hasActool() && existsSync(layered)
 const icon = useLayered ? 'build/icon.icon' : 'build/icon.icns'
 
 if (!useLayered && !existsSync(classic)) {
