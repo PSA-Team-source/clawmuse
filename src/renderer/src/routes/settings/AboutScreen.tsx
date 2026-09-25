@@ -1,14 +1,17 @@
 import { ArrowUpRight01Icon } from '@hugeicons/core-free-icons'
 import { SettingsGroup, SettingsRow } from '@/components/settings'
 import { Icon } from '@/components/primitives'
+import { REPOSITORY_URL } from '@/lib/star-prompt'
 
 /**
  * Muse's Help & support, holding only destinations that exist. Version and
- * updates live on General; legal text on Legal info. Muse's "Submit feedback"
- * and "Report an issue" post to Meta — ClawMuse has no service to receive them,
- * so they are not offered rather than offered and dropped.
+ * updates live on General; legal text on Legal info. ClawMuse has no service
+ * of its own to receive feedback, so "Report an issue" is the public issue
+ * tracker's form picker (.github/ISSUE_TEMPLATE), opened in the browser.
  */
 const HELP_LINKS: { label: string; url: string }[] = [
+  { label: 'ClawMuse on GitHub', url: REPOSITORY_URL },
+  { label: 'Report an issue', url: `${REPOSITORY_URL}/issues/new/choose` },
   { label: 'OpenClaw documentation', url: 'https://docs.openclaw.ai' },
 ]
 

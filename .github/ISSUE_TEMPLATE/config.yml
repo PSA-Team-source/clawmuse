@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Questions, ideas and show-and-tell
+    url: https://github.com/PSA-Team-source/clawmuse/discussions
+    about: Ask how to do something, share a skill you built, or float an idea before filing it.
   - name: Report a security vulnerability
     url: https://github.com/PSA-Team-source/clawmuse/security/advisories/new
     about: Report security problems privately, never in a public issue.

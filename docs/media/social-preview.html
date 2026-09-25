@@ -1,0 +1,32 @@
+<!doctype html>
+<!--
+  Source of social-preview.png, the repository's social preview (Settings → General → Social preview).
+  1280×640; GitHub may crop the edges, so everything sits well inside an 80px margin.
+  Render from _CLAWMUSE:
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --hide-scrollbars \
+      --force-device-scale-factor=1 --window-size=1280,640 \
+      --screenshot=docs/media/social-preview.png docs/media/social-preview.html
+  The mark's paths are BRAND_MARK in src/shared/brand.ts.
+-->
+<html lang="en"><head><meta charset="utf-8"><title>ClawMuse social preview</title>
+<style>
+@font-face { font-family: Inter; src: url(../../site/public/fonts/inter-var.woff2) format('woff2'); font-weight: 100 900; }
+html, body { margin: 0; width: 1280px; height: 640px; overflow: hidden; }
+body { background: #fff; color: #121214; font-family: Inter, system-ui, sans-serif; display: flex; align-items: center; justify-content: center; gap: 60px; -webkit-font-smoothing: antialiased; }
+svg { width: 232px; height: 206px; flex: none; }
+h1 { margin: 0; font-size: 100px; line-height: 1; font-weight: 750; letter-spacing: -0.035em; }
+p { margin: 22px 0 0; font-size: 32px; line-height: 1.32; font-weight: 450; color: #3a3a40; letter-spacing: -0.01em; }
+ul { display: flex; gap: 10px; margin: 34px 0 0; padding: 0; list-style: none; }
+li { padding: 9px 16px; border-radius: 999px; background: #fff0ee; color: #c8352b; font-size: 19px; font-weight: 600; }
+</style></head>
+<body>
+<svg viewBox="228 260 569 504" aria-hidden="true"><g fill="#FF0000">
+<path d="M673.4 350.0A252 252 0 1 0 673.4 674.0A56 56 0 0 0 587.6 602.0A140 140 0 1 1 587.6 422.0A56 56 0 0 0 673.4 350.0Z"/>
+<path d="M712.4 428.0C724.2 500.2 724.2 500.2 796.4 512.0C724.2 523.8 724.2 523.8 712.4 596.0C700.6 523.8 700.6 523.8 628.4 512.0C700.6 500.2 700.6 500.2 712.4 428.0Z"/>
+</g></svg>
+<div>
+  <h1>ClawMuse</h1>
+  <p>Your personal AI, on your own computer.<br>It follows the news around your goals<br>and does the work on your machine.</p>
+  <ul><li>Open source · MIT</li><li>macOS &amp; Windows</li><li>Your own models</li><li>No account</li></ul>
+</div>
+</body></html>

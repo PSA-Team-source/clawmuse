@@ -50,6 +50,10 @@ describe('share clip layout', () => {
       expect(l.card.x + l.card.w).toBeLessThanOrEqual(l.width)
       expect(l.card.y + l.card.h).toBeLessThanOrEqual(l.height)
       expect(l.card.w / l.card.h).toBeCloseTo(cw / ch, 1)
+      // The credit sits under the avatar, inside the frame, never over the avatar.
+      expect(l.credit.y).toBeGreaterThan(l.avatar.y + l.avatar.size)
+      expect(l.credit.y).toBeLessThan(l.height)
+      expect(l.credit.x).toBe(l.avatar.x + l.avatar.size / 2)
     }
     expect(() => shareClipLayout(0, 10)).toThrow()
   })

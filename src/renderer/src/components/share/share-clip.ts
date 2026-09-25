@@ -26,6 +26,13 @@ const CARD_W = 480
 const MAX_CARD_H = 720
 const BACKGROUND = '#181819'
 const GLOW = '255, 90, 78' // brand coral
+/**
+ * A quiet credit under the avatar. The card's own footer says the same, but a
+ * tall card is scaled down so far in the clip that its footer stops being
+ * legible; this line stays the same size whatever the card.
+ */
+export const CLIP_CREDIT = 'ClawMuse · clawmuse.app'
+const CREDIT_FONT = '500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
 
 const even = (n: number) => Math.ceil(n / 2) * 2 // video encoders want even sizes
 
@@ -42,6 +49,8 @@ export function shareClipLayout(cardWidth: number, cardHeight: number) {
     height,
     avatar: { x: PAD, y: Math.round((height - AVATAR) / 2), size: AVATAR },
     card: { x: PAD + AVATAR + GAP + Math.round((CARD_W - w) / 2), y: Math.round((height - h) / 2), w, h },
+    /** Centre-baseline of the credit, inside the bottom padding under the avatar column. */
+    credit: { x: PAD + AVATAR / 2, y: height - Math.round(PAD / 2) + 4 },
   }
 }
 
@@ -76,6 +85,10 @@ async function composeFor(cardDataUrl: string): Promise<ExportCompose> {
   ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(card, layout.card.x, layout.card.y, layout.card.w, layout.card.h)
   ctx.restore()
+  ctx.font = CREDIT_FONT
+  ctx.textAlign = 'center'
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'
+  ctx.fillText(CLIP_CREDIT, layout.credit.x, layout.credit.y)
   return {
     width: layout.width,
     height: layout.height,

@@ -46,6 +46,8 @@ import { AgentAvatar } from '@/components/status/AgentAvatar'
 import { failureNotice } from '@/lib/failure-notice'
 import { shareCard } from '@/stores/share-card.store'
 import { RecapButton, WeeklyRecapSection } from './WeeklyRecap'
+import { StarPrompt } from './StarPrompt'
+import { canOfferStar, recordStarPrompt } from '@/lib/star-prompt'
 import type { FsEntry, FsRoot } from '@shared/ipc'
 
 /** Where saved work lives in the workspace ("Show in Library" writes here). */
@@ -139,6 +141,8 @@ export function FeedScreen() {
   const navigate = useNavigate()
   const [draft, setDraft] = useState('')
   const [editing, setEditing] = useState(false)
+  /** The story whose first Love earned the one-time GitHub star note (see lib/star-prompt). */
+  const [starFor, setStarFor] = useState<string | null>(null)
   const job = assistant?.jobs.feed
   const prompt = assistant?.feedPrompt ?? ''
   const liked = useMemo(() => new Set(assistant?.likedFeed ?? []), [assistant?.likedFeed])
@@ -152,6 +156,15 @@ export function FeedScreen() {
     if (!value) return
     void window.clawmuse.assistant.setFeedPrompt(value)
     setEditing(false)
+  }
+
+  function toggleLove(item: FeedUnit): void {
+    const loving = !liked.has(item.id)
+    void window.clawmuse.assistant.markFeedUnit(item.id, loving ? 'like' : 'unlike')
+    if (loving && !starFor && canOfferStar()) {
+      recordStarPrompt('shown')
+      setStarFor(item.id)
+    }
   }
 
   function discuss(item: FeedUnit): void {
@@ -232,10 +245,11 @@ export function FeedScreen() {
                   {item.sources.map((source, index) => <span key={source.url}>{index > 0 && ' · '}<a href={source.url} title={source.title} onClick={openLink(source.url)} className="hover:text-content-primary hover:underline">{source.source ?? new URL(source.url).hostname.replace(/^www\./, '')}</a></span>)}
                 </p>}
                 <div className="mt-3 flex items-center gap-4 text-body-sm font-medium text-content-secondary">
-                  <button type="button" aria-label="Love" aria-pressed={liked.has(item.id)} onClick={() => void window.clawmuse.assistant.markFeedUnit(item.id, liked.has(item.id) ? 'unlike' : 'like')} className={`flex items-center hover:text-content-primary ${liked.has(item.id) ? 'text-muse-blue' : ''}`}><Icon icon={FavouriteIcon} size={20} className="text-current" /></button>
+                  <button type="button" aria-label="Love" aria-pressed={liked.has(item.id)} onClick={() => toggleLove(item)} className={`flex items-center hover:text-content-primary ${liked.has(item.id) ? 'text-muse-blue' : ''}`}><Icon icon={FavouriteIcon} size={20} className="text-current" /></button>
                   <button type="button" onClick={() => discuss(item)} className="flex items-center gap-2 hover:text-content-primary"><Icon icon={BubbleChatIcon} size={20} className="text-current" />Discuss</button>
                   <button type="button" onClick={() => shareFeedUnit(item)} className="flex items-center gap-2 hover:text-content-primary"><Icon icon={Share08Icon} size={20} className="text-current" />Share</button>
                 </div>
+                {starFor === item.id && <StarPrompt onClose={() => setStarFor(null)} />}
               </article>)}
             </div>
           </section>)}
