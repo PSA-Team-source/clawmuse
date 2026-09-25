@@ -18,4 +18,7 @@ export interface CharacterData {
   taskCount?: number
   isProcessing?: boolean
   lastMessage?: string
+  /** Seed for every random choice in the mesh (hair spikes…). Defaults to a
+   *  hash of name + style, so the same character always builds the same. */
+  seed?: number
 }

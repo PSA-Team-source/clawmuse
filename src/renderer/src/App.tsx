@@ -44,6 +44,9 @@ const FeedScreen = lazy(() => import('@/routes/muse/MuseScreens').then((module) 
 const IdeasScreen = lazy(() => import('@/routes/muse/MuseScreens').then((module) => ({ default: module.IdeasScreen })))
 const GoalsScreen = lazy(() => import('@/routes/muse/MuseScreens').then((module) => ({ default: module.GoalsScreen })))
 const LibraryScreen = lazy(() => import('@/routes/muse/MuseScreens').then((module) => ({ default: module.LibraryScreen })))
+// Dev-only avatar workbench. `import.meta.env.DEV` is a literal `false` in
+// production builds, so the route and its chunk are dropped entirely.
+const AvatarLab = import.meta.env.DEV ? lazy(() => import('@/features/avatar/dev/AvatarLab')) : null
 
 function FullscreenSpinner() {
   return (
@@ -109,6 +112,7 @@ function AppRoutes() {
       <Routes>
         {/* The ⌥Space panel renders standalone — no roster, no title strip. */}
         <Route path="/quick" element={<QuickChatScreen />} />
+        {AvatarLab && <Route path="/dev/avatar" element={<AvatarLab />} />}
 
         {/* Asked once, after a model is set up: what the user is working toward. */}
         <Route path="/welcome" element={<RequireRuntime><WelcomeScreen /></RequireRuntime>} />

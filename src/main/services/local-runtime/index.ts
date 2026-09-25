@@ -25,7 +25,8 @@ import {
   wireProvider,
 } from './config-gen.js'
 import { patchEnvFile, readEnvFile } from './env-file.js'
-import { installOpenclawCli } from './install-cli.js'
+import { installBundledRuntime } from './bundled-runtime.js'
+import { ensureBundledNpm, installOpenclawCli } from './install-cli.js'
 import { checkNode } from './node-check.js'
 import { DEFAULT_PORT, paths, wsUrlFor } from './paths.js'
 import { isPortTaken, pickPort } from './port.js'
@@ -265,6 +266,18 @@ async function ensureInner(): Promise<LocalRuntimeStatus> {
 
   progress('checking-cli')
   resolution = await resolveOpenclaw()
+  // The installer's own copy first — seconds, no network; npm is the fallback.
+  if (!resolution) {
+    progress('installing-cli', 'Setting up the OpenClaw runtime…')
+    if (await installBundledRuntime()) {
+      resolution = await resolveOpenclaw()
+      if (!resolution) log.warn('[local-runtime] the bundled runtime did not start, falling back to npm')
+    }
+  }
+  // OpenClaw spawns `npm.cmd` itself on Windows (the gateway crash-looped on
+  // "spawn npm.cmd ENOENT" on a clean PC), and only the npm install path wrote
+  // the shims — so provide them however the runtime arrived.
+  if (process.platform === 'win32') await ensureBundledNpm()
   if (!resolution) {
     progress('installing-cli', 'Downloading the OpenClaw runtime…')
     try {

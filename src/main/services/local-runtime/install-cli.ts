@@ -58,8 +58,7 @@ async function writeWindowsNpmShims(npmCli: string): Promise<void> {
 }
 
 async function locateBundledNpm(): Promise<string | null> {
-  const resources = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
-  const vendor = resources ? join(resources, 'vendor') : null
+  const vendor = vendorDir()
   const tarball = vendor && existsSync(vendor) ? readdirSync(vendor).find((f) => /^npm-[\d.]+\.tgz$/.test(f)) : undefined
   if (vendor && tarball) {
     const target = join(paths.home, 'tools', tarball.replace(/\.tgz$/, ''))
@@ -70,9 +69,7 @@ async function locateBundledNpm(): Promise<string | null> {
     const staging = `${target}.partial`
     await rm(staging, { recursive: true, force: true })
     await mkdir(staging, { recursive: true })
-    // Windows 10+ ships bsdtar as %SystemRoot%\System32\tar.exe, which reads .tgz.
-    const tar = process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : '/usr/bin/tar'
-    const untar = await run(tar, ['-xzf', join(vendor, tarball), '-C', staging], { timeoutMs: 120_000 })
+    const untar = await run(systemTar(), ['-xzf', join(vendor, tarball), '-C', staging], { timeoutMs: 120_000 })
     if (untar.code === 0 && existsSync(join(staging, 'package', 'bin', 'npm-cli.js'))) {
       await rm(target, { recursive: true, force: true })
       await rename(join(staging, 'package'), target)
@@ -84,6 +81,20 @@ async function locateBundledNpm(): Promise<string | null> {
     return null
   }
   return devNpmCli()
+}
+
+/**
+ * The OS's own `tar`, never one from PATH: Windows 10+ ships bsdtar as
+ * %SystemRoot%\System32\tar.exe, which reads .tgz; macOS has /usr/bin/tar.
+ */
+export function systemTar(): string {
+  return process.platform === 'win32' ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : '/usr/bin/tar'
+}
+
+/** Resources/vendor in a packaged app (electron-builder.yml extraResources); null in dev. */
+export function vendorDir(): string | null {
+  const resources = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
+  return resources ? join(resources, 'vendor') : null
 }
 
 /** The `npm` devDependency — what dev runs and tests use. */

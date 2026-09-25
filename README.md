@@ -41,9 +41,11 @@ certificate, the operating system asks you to confirm once:
 - **Windows**: if SmartScreen appears, click **More info → Run anyway**. The installer is per-user
   and needs no administrator rights.
 
-The first launch downloads the [OpenClaw](https://github.com/openclaw/openclaw) runtime ClawMuse
-runs on (a pinned release, once), using the Node.js built into the app and an npm that ships inside
-it. No Node, Homebrew or terminal is needed on your side.
+The [OpenClaw](https://github.com/openclaw/openclaw) runtime ClawMuse runs on (a pinned release)
+ships inside the installer, already installed for your platform, and the first launch unpacks it
+in seconds with no network. Only if that fails does the app download it instead, using the Node.js
+built into the app and an npm that ships inside it. No Node, Homebrew or terminal is needed on your
+side.
 
 ## What it does
 
@@ -86,7 +88,8 @@ a tracker, written for your situation. One click starts one.</td>
 1. **Your messages go to the model provider you chose**, under your own key and their terms,
    unless the model runs locally, in which case nothing leaves.
 2. **When a bot browses or calls a connector**, it reaches that site the way your browser would.
-3. **First launch downloads the OpenClaw runtime** from the npm registry, at a pinned version.
+3. **The OpenClaw runtime ships in the installer.** Only if unpacking it fails does first launch
+   download it from the npm registry, at the same pinned version.
 4. **The Feed looks up headlines**: short search terms drawn from your goals go to Bing News
    (Google News as the fallback).
 

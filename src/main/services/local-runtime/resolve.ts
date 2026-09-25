@@ -49,14 +49,18 @@ function versionParts(version: string): number[] {
  * rather than at the binary reading it.
  */
 export function isOutdatedOpenclaw(version: string): boolean {
-  const have = versionParts(version)
-  const want = versionParts(PINNED_OPENCLAW_VERSION)
-  for (let i = 0; i < want.length; i += 1) {
-    const a = have[i] ?? 0
-    const b = want[i] ?? 0
-    if (a !== b) return a < b
+  return compareOpenclawVersions(version, PINNED_OPENCLAW_VERSION) < 0
+}
+
+/** Orders two OpenClaw versions by release triple (see `versionParts`): <0, 0 or >0. */
+export function compareOpenclawVersions(left: string, right: string): number {
+  const a = versionParts(left)
+  const b = versionParts(right)
+  for (let i = 0; i < Math.max(a.length, b.length); i += 1) {
+    const diff = (a[i] ?? 0) - (b[i] ?? 0)
+    if (diff !== 0) return diff
   }
-  return false
+  return 0
 }
 
 async function probe(bin: string, source: OpenclawSource): Promise<OpenclawResolution | null> {

@@ -432,6 +432,11 @@ export function createEngine(opts: CreateEngineOpts): RoomEngine {
           mesh.rotation.x = time * 0.4
           mesh.position.y = obj.baseY! + Math.sin(time * 1.5) * 0.1
           break
+        case 'sparkSpin':
+          // The muse's spark: a slow coin-turn and a bob above the head.
+          mesh.rotation.y = time * 1.2
+          mesh.position.y = obj.baseY! + Math.sin(time * 2) * 0.05
+          break
         case 'crystalSpin':
           mesh.rotation.y = time * 2
           mesh.rotation.x = time * 1.2

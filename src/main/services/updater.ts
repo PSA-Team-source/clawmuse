@@ -41,9 +41,12 @@ function hasBundledFeed(): boolean {
  *
  * A real failure — DNS, TLS, a corrupt manifest — still surfaces as an error.
  */
-function isChannelMissing(error: Error): boolean {
-  const text = `${error.message}`
-  return /HttpError:\s*404|status(?:Code)?[:=]\s*404|cannot find channel/i.test(text)
+function isChannelMissing(error: unknown): boolean {
+  // electron-updater's HttpError carries the status; its message starts with
+  // "404" and does not contain the class name, so the text alone missed it.
+  if ((error as { statusCode?: unknown })?.statusCode === 404) return true
+  const text = `${(error as Error)?.message ?? error}`
+  return /HttpError:\s*404|^\s*404\b|status(?:Code)?[:=]\s*404|cannot find channel/i.test(text)
 }
 
 function broadcast(status: UpdateStatus): void {
@@ -70,7 +73,14 @@ export function initUpdater(): void {
     return
   }
 
-  autoUpdater.logger = log
+  // electron-updater logs its own errors before emitting them; keep the
+  // no-release-yet 404 out of the error log (handled quietly below).
+  autoUpdater.logger = {
+    info: (...args: unknown[]) => log.info(...args),
+    warn: (...args: unknown[]) => log.warn(...args),
+    debug: (...args: unknown[]) => log.debug(...args),
+    error: (...args: unknown[]) => (args.some(isChannelMissing) ? log.debug(...args) : log.error(...args)),
+  }
   // Download in the background, but never restart under the user — a surprise
   // relaunch mid-conversation would drop a streaming agent response.
   autoUpdater.autoDownload = true
@@ -149,7 +159,8 @@ export async function checkForUpdates(fromUser = false): Promise<void> {
   try {
     await autoUpdater.checkForUpdates()
   } catch (err) {
-    log.error('[updater] check failed', err)
+    // The 'error' event already reported it (quietly, for a missing channel).
+    if (!isChannelMissing(err)) log.error('[updater] check failed', err)
   }
 }
 

@@ -2,11 +2,8 @@
 // three.js + string hashing, no RN dependency.
 import * as THREE from 'three'
 
-export function hashStr(s: string): number {
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = s.charCodeAt(i) + ((h << 5) - h)
-  return Math.abs(h)
-}
+// Lives in ./rng (three-free) so pure modules can hash without pulling three.
+export { hashStr } from './rng'
 
 export function hexToInt(hex: string): number {
   return parseInt(hex.replace('#', ''), 16) || 0x00f0ff

@@ -21,9 +21,10 @@
  * Usage:
  *   node scripts/e2e-clean.mjs                                   # packaged app
  *   node scripts/e2e-clean.mjs --app dist/mac-arm64/ClawMuse.app
+ *   node scripts/e2e-clean.mjs --stop-after-runtime              # time the runtime install only
  */
 import { spawn } from 'node:child_process'
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
@@ -42,6 +43,16 @@ if (!existsSync(appBundle)) {
   console.error(`✗ ${appBundle} not found — run \`npm run dist:mac:arm\` first.`)
   process.exit(1)
 }
+/** Stop once the runtime is installed — enough to time a first launch, and well before launchd. */
+const stopAfterRuntime = process.argv.includes('--stop-after-runtime')
+/** Whether this build ships the OpenClaw runtime (scripts/vendor-openclaw.mjs) — if so, it must be the one used. */
+const shipsRuntime = (() => {
+  try {
+    return readdirSync(join(appBundle, 'Contents', 'Resources', 'vendor')).some((f) => /^openclaw-runtime-/.test(f))
+  } catch {
+    return false
+  }
+})()
 
 const failures = []
 function check(name, ok, detail = '') {
@@ -68,7 +79,7 @@ async function waitForLog(pattern, timeoutMs = MILESTONE_TIMEOUT_MS) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     if (pattern.test(logText())) return true
-    await sleep(1000)
+    await sleep(250)
   }
   return false
 }
@@ -137,6 +148,7 @@ const app = spawn(
 /** Thrown to leave the milestone chain early without failing the run. */
 class SkipRest extends Error {}
 let stopAfterFirstScreen = false
+let keyCommittedAt
 
 const appLogs = []
 app.stdout.on('data', (d) => appLogs.push(String(d)))
@@ -232,6 +244,7 @@ try {
     'no renderer',
   )
   check('the first-run choice can be committed', started === true, String(started))
+  keyCommittedAt = Date.now()
 
   check(
     'repairs PATH for a GUI launch',
@@ -248,9 +261,26 @@ try {
 
   check(
     'installs the OpenClaw runtime by itself',
-    await waitForLog(/installed openclaw@|using openclaw .* \((managed|path)\)/),
+    // The npm fallback can take minutes on a cold cache; its own timeout is ten.
+    await waitForLog(/installed openclaw@|using openclaw .* \((managed|path)\)/, 600_000),
     'no CLI install and none found',
   )
+  // Installed is not enough — `ensure()` must then run it (`--version` probe).
+  check(
+    'the installed runtime runs',
+    await waitForLog(/using openclaw \S+ \((managed|path)\)/, 120_000),
+    'installed, but resolveOpenclaw() never accepted it',
+  )
+  const installLine = /\[local-runtime\] (installed openclaw@\S+ .*)/.exec(logText())?.[1] ?? 'no install line'
+  console.log(`  › runtime ready ${((Date.now() - keyCommittedAt) / 1000).toFixed(1)}s after the key was committed — ${installLine}`)
+  if (shipsRuntime) {
+    check(
+      'unpacks the runtime the installer shipped instead of downloading it',
+      /from the bundled runtime/.test(installLine),
+      installLine,
+    )
+  }
+  if (stopAfterRuntime) throw new SkipRest()
 
   // The deadlock this replaces: onboarding asked for a key, but the provider the
   // build ships is only seeded inside `ensure()` — which onboarding gated. The
@@ -339,5 +369,7 @@ if (failures.length > 0) {
 console.log(
   stopAfterFirstScreen
     ? '\n✓ first screen passed (install chain not exercised — no CLAWMUSE_E2E_KEY)'
-    : '\n✓ first run passed',
+    : stopAfterRuntime
+      ? '\n✓ first run passed up to the runtime install (--stop-after-runtime)'
+      : '\n✓ first run passed',
 )

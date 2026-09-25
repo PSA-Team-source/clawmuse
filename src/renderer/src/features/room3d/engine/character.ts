@@ -6,9 +6,15 @@
 //     desktop tsconfig enables `noUncheckedIndexedAccess`, which mobile's
 //     tsconfig does not. Every assertion sites an index that is provably
 //     in range (loop counter < array length); no runtime behavior changes.
+//
+// Desktop additions since the port: the `muse` body style (ClawMuse's mascot —
+// claw mitts and a floating spark), seeded striker spikes (were Math.random,
+// so a rebuild reshuffled them), and rig handles on `userData` for the face
+// (eyes, pupils, mouth), hands, claws and spark that the avatar engine drives.
 import * as THREE from 'three'
 import { DESK_POSITIONS, IDLE_POSITIONS } from './constants'
-import { toonMat } from './materials'
+import { hashStr, toonMat } from './materials'
+import { mulberry32 } from './rng'
 import { createWorkDesk } from './furniture'
 import type { FloatingObject } from './furniture'
 import type { CharacterData } from './types'
@@ -50,6 +56,86 @@ const DARK_MAT = shared(toonMat(0x1a1a2e))
 const SHADOW_MAT = shared(
   new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25 }),
 )
+
+// ── Muse (ClawMuse) parts ─────────────────────────────────────────────────────
+// Claw mitt: a palm and two pincer jaws, the voxel read of the app icon's claw
+// (resources/glyph.svg) — a thin fixed jaw and a heavier moving one.
+const CLAW_PALM_GEO = shared(new THREE.BoxGeometry(0.16, 0.12, 0.15))
+const CLAW_FIXED_GEO = shared(new THREE.BoxGeometry(0.055, 0.15, 0.1))
+const CLAW_MOVING_GEO = shared(new THREE.BoxGeometry(0.07, 0.17, 0.11))
+const CLAW_TIP_GEO = shared(new THREE.BoxGeometry(0.045, 0.05, 0.08))
+const WHITE_MAT = shared(toonMat(0xfff6ee))
+
+/**
+ * The spark from the icon: four points joined by concave curves. Control
+ * points are the glyph's own (its spark is 144 units across with handles at
+ * 6 and 18 from the centre lines → 0.083 and 0.25 of the radius).
+ */
+function sparkGeometry(): THREE.BufferGeometry {
+  const s = new THREE.Shape()
+  const a = 0.083
+  const b = 0.25
+  s.moveTo(0, 1)
+  s.bezierCurveTo(a, b, b, a, 1, 0)
+  s.bezierCurveTo(b, -a, a, -b, 0, -1)
+  s.bezierCurveTo(-a, -b, -b, -a, -1, 0)
+  s.bezierCurveTo(-b, a, -a, b, 0, 1)
+  const geo = new THREE.ExtrudeGeometry(s, { depth: 0.3, bevelEnabled: false, curveSegments: 8 })
+  geo.translate(0, 0, -0.15)
+  return geo
+}
+export const SPARK_GEO = shared(sparkGeometry())
+/** Body-space height the spark floats at, above the head. */
+export const SPARK_Y = 2.24
+export const MUSE_CORAL = 0xff5a4e
+
+export interface ClawRig {
+  group: THREE.Group
+  /** Pivot groups; rotate on Z to open (mirrored per side). */
+  fixed: THREE.Group
+  moving: THREE.Group
+  side: 1 | -1
+}
+
+function buildClaw(mat: THREE.Material, side: 1 | -1): ClawRig {
+  const group = new THREE.Group()
+  group.position.y = -0.5
+  const palm = new THREE.Mesh(CLAW_PALM_GEO, mat)
+  palm.castShadow = true
+  group.add(palm)
+
+  // `side` mirrors the claw so the heavy jaw is always on the outside.
+  const fixed = new THREE.Group()
+  fixed.position.set(-0.04 * side, -0.05, 0)
+  group.add(fixed)
+  const fixedJaw = new THREE.Mesh(CLAW_FIXED_GEO, mat)
+  fixedJaw.position.y = -0.075
+  fixed.add(fixedJaw)
+  const fixedTip = new THREE.Mesh(CLAW_TIP_GEO, WHITE_MAT)
+  fixedTip.position.y = -0.17
+  fixed.add(fixedTip)
+
+  const moving = new THREE.Group()
+  moving.position.set(0.04 * side, -0.05, 0)
+  group.add(moving)
+  const movingJaw = new THREE.Mesh(CLAW_MOVING_GEO, mat)
+  movingJaw.position.y = -0.085
+  moving.add(movingJaw)
+  const movingTip = new THREE.Mesh(CLAW_TIP_GEO, WHITE_MAT)
+  movingTip.position.set(0, -0.19, 0)
+  moving.add(movingTip)
+
+  const claw: ClawRig = { group, fixed, moving, side }
+  setClawOpen(claw, 0.2)
+  return claw
+}
+
+/** Opens a claw mitt: 0 = pinched shut, 1 = wide. */
+export function setClawOpen(claw: ClawRig, open: number): void {
+  const o = Math.max(0, Math.min(1, open))
+  claw.fixed.rotation.z = -claw.side * (0.04 + o * 0.28)
+  claw.moving.rotation.z = claw.side * (0.08 + o * 0.55)
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -135,6 +221,13 @@ export function buildCharacter(cfg: CharacterData, index: number, floatingObject
   belt.position.y = 0.72
   bodyGroup.add(belt)
 
+  if (cfg.style === 'muse') {
+    // White collar — the icon's white-on-coral, worn.
+    const collar = new THREE.Mesh(new THREE.BoxGeometry(tw + 0.02, 0.07, td + 0.02), WHITE_MAT)
+    collar.position.y = 1.27
+    bodyGroup.add(collar)
+  }
+
   const headGroup = new THREE.Group()
   headGroup.position.y = 1.6
   bodyGroup.add(headGroup)
@@ -164,7 +257,31 @@ export function buildCharacter(cfg: CharacterData, index: number, floatingObject
   headGroup.add(mouth)
 
   // Hair styles
-  if (cfg.style === 'mage') {
+  // Seeded, never Math.random: a rebuild (or an exported still) must produce
+  // exactly the character that was on screen.
+  const rand = mulberry32(cfg.seed ?? hashStr(`${cfg.name}:${cfg.style}`))
+  if (cfg.style === 'muse') {
+    // A bob that leaves the forehead clear, so brows read on skin.
+    const top = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.16, 0.46), hairMat)
+    top.position.set(0, 0.27, -0.01)
+    headGroup.add(top)
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.42, 0.14), hairMat)
+    back.position.set(0, 0.05, -0.17)
+    headGroup.add(back)
+    for (const sx of [-1, 1]) {
+      const lock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.34, 0.32), hairMat)
+      lock.position.set(0.25 * sx, 0.04, -0.02)
+      headGroup.add(lock)
+    }
+    const fringeL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.06), hairMat)
+    fringeL.position.set(-0.11, 0.19, 0.2)
+    fringeL.rotation.z = -0.12
+    headGroup.add(fringeL)
+    const fringeR = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.07, 0.06), hairMat)
+    fringeR.position.set(0.12, 0.2, 0.2)
+    fringeR.rotation.z = 0.18
+    headGroup.add(fringeR)
+  } else if (cfg.style === 'mage') {
     const hair = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.35, 0.45), hairMat)
     hair.position.set(0, 0.2, -0.02)
     headGroup.add(hair)
@@ -180,8 +297,8 @@ export function buildCharacter(cfg: CharacterData, index: number, floatingObject
     headGroup.add(hair)
     for (let s = 0; s < 5; s++) {
       const spike = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.25, 4), hairMat)
-      spike.position.set(-0.15 + s * 0.075, 0.4 + Math.random() * 0.1, -0.05 + Math.random() * 0.1)
-      spike.rotation.z = (Math.random() - 0.5) * 0.5
+      spike.position.set(-0.15 + s * 0.075, 0.4 + rand() * 0.1, -0.05 + rand() * 0.1)
+      spike.rotation.z = (rand() - 0.5) * 0.5
       headGroup.add(spike)
     }
   } else if (cfg.style === 'sentinel') {
@@ -223,13 +340,21 @@ export function buildCharacter(cfg: CharacterData, index: number, floatingObject
   rightArm.castShadow = true
   rightArmGroup.add(rightArm)
 
-  // Hands
-  const handGeo = HAND_GEO
-  const leftHand = new THREE.Mesh(handGeo, accentMat)
-  leftHand.position.y = -0.5
+  // Hands — claw mitts for the muse, plain mitts for everyone else.
+  let leftHand: THREE.Object3D
+  let rightHand: THREE.Object3D
+  let claws: [ClawRig, ClawRig] | null = null
+  if (cfg.style === 'muse') {
+    claws = [buildClaw(accentMat, -1), buildClaw(accentMat, 1)]
+    leftHand = claws[0].group
+    rightHand = claws[1].group
+  } else {
+    leftHand = new THREE.Mesh(HAND_GEO, accentMat)
+    leftHand.position.y = -0.5
+    rightHand = new THREE.Mesh(HAND_GEO, accentMat)
+    rightHand.position.y = -0.5
+  }
   leftArmGroup.add(leftHand)
-  const rightHand = new THREE.Mesh(handGeo, accentMat)
-  rightHand.position.y = -0.5
   rightArmGroup.add(rightHand)
 
   // Legs
@@ -312,6 +437,18 @@ export function buildCharacter(cfg: CharacterData, index: number, floatingObject
     floatingObjects.push({ mesh: ring2, type: 'healRing2' })
   }
 
+  let spark: THREE.Group | null = null
+  if (cfg.style === 'muse') {
+    spark = new THREE.Group()
+    spark.position.y = SPARK_Y
+    // Unlit, in the outfit colour: reads on light and dark backgrounds alike.
+    const star = new THREE.Mesh(SPARK_GEO, new THREE.MeshBasicMaterial({ color: cfg.accentHex }))
+    star.scale.setScalar(0.17)
+    spark.add(star)
+    bodyGroup.add(spark)
+    floatingObjects.push({ mesh: spark, type: 'sparkSpin', baseY: SPARK_Y })
+  }
+
   // Shadow
   const shadow = new THREE.Mesh(SHADOW_GEO, SHADOW_MAT)
   shadow.rotation.x = -Math.PI / 2
@@ -328,6 +465,14 @@ export function buildCharacter(cfg: CharacterData, index: number, floatingObject
     rightArm: rightArmGroup,
     leftLeg: leftLegGroup,
     rightLeg: rightLegGroup,
+    // Rig handles for the avatar engine (the room only animates the above).
+    eyes: [eyeL, eyeR],
+    pupils: [pupilL, pupilR],
+    mouth,
+    hands: [leftHand, rightHand],
+    claws,
+    spark,
+    shadow,
   }
   return group
 }

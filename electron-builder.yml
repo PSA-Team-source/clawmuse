@@ -27,7 +27,15 @@ extraResources:
   - from: vendor
     to: vendor
     filter: ['npm-*.tgz']
+  # The OpenClaw runtime, already installed for THIS target's os/arch
+  # (scripts/vendor-openclaw.mjs, run per target by beforePack), so first launch
+  # unpacks it in seconds instead of `npm install`-ing ~330 packages
+  # (bundled-runtime.ts). `${os}` is mac/win, `${arch}` the target arch.
+  - from: vendor/openclaw/${os}-${arch}
+    to: vendor
+    filter: ['openclaw-runtime-*']
 
+beforePack: scripts/before-pack.mjs
 afterPack: scripts/after-pack.mjs
 afterSign: scripts/after-sign.mjs
 
