@@ -116,6 +116,20 @@ And:
 
 ## Install
 
+**macOS** — paste into Terminal:
+
+```sh
+curl -fsSL https://clawmuse.app/install.sh | sh
+```
+
+It downloads the latest release for your Mac from this repository's
+[Releases page](https://github.com/PSA-Team-source/clawmuse/releases), checks it against that
+release's `SHA256SUMS.txt`, installs ClawMuse in Applications and opens it — with no security
+prompt. Run it again at any time to update. The script is
+[`scripts/install-mac.sh`](scripts/install-mac.sh); read it first if you like.
+
+Or download an installer:
+
 | Platform | Download |
 |---|---|
 | macOS 12+, Apple silicon (M1 and later) | [ClawMuse for Mac (Apple silicon)](https://clawmuse.app/download/mac-arm64) |
@@ -127,19 +141,16 @@ Every release is also on the [Releases page](https://github.com/PSA-Team-source/
 with a `SHA256SUMS.txt`. To check a download: `shasum -a 256 <file>` on macOS,
 `Get-FileHash <file>` in PowerShell, and compare with the line in `SHA256SUMS.txt`.
 
-<details>
-<summary><strong>First open: the builds are not code-signed yet</strong></summary>
+**First open of a downloaded installer.** The builds are not code-signed yet (no Apple Developer
+ID or Windows code-signing certificate), so the operating system asks you to confirm once:
 
-Until releases carry an Apple Developer ID and a Windows code-signing certificate, the operating
-system asks you to confirm once:
-
-- **macOS**: if macOS says it cannot check the app for malware, click **Done**, open
-  *System Settings → Privacy & Security*, and click **Open Anyway** next to ClawMuse.
+- **macOS**: when macOS says *"ClawMuse" Not Opened — Apple could not verify…*, click **Done**,
+  open *System Settings → Privacy & Security*, scroll down and click **Open Anyway** next to
+  ClawMuse, then confirm. (Right-click → Open no longer does this on macOS 15 and later.)
 - **Windows**: if SmartScreen appears, click **More info → Run anyway**. The installer is per-user
   and needs no administrator rights.
 
 After that it opens like any other app.
-</details>
 
 <details>
 <summary><strong>What happens on first launch</strong></summary>
