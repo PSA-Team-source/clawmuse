@@ -141,14 +141,12 @@ Every release is also on the [Releases page](https://github.com/PSA-Team-source/
 with a `SHA256SUMS.txt`. To check a download: `shasum -a 256 <file>` on macOS,
 `Get-FileHash <file>` in PowerShell, and compare with the line in `SHA256SUMS.txt`.
 
-**First open of a downloaded installer.** The builds are not code-signed yet (no Apple Developer
-ID or Windows code-signing certificate), so the operating system asks you to confirm once:
+**First open of a downloaded installer.**
 
-- **macOS**: when macOS says *"ClawMuse" Not Opened — Apple could not verify…*, click **Done**,
-  open *System Settings → Privacy & Security*, scroll down and click **Open Anyway** next to
-  ClawMuse, then confirm. (Right-click → Open no longer does this on macOS 15 and later.)
-- **Windows**: if SmartScreen appears, click **More info → Run anyway**. The installer is per-user
-  and needs no administrator rights.
+- **macOS**: the app is signed with an Apple Developer ID and notarized by Apple. macOS asks once
+  whether to open an app downloaded from the internet; click **Open**.
+- **Windows**: the installer is not code-signed yet, so if SmartScreen appears, click
+  **More info → Run anyway**. The installer is per-user and needs no administrator rights.
 
 After that it opens like any other app.
 
@@ -268,10 +266,9 @@ the [release workflow](.github/workflows/release.yml); see [CONTRIBUTING.md](CON
 
 Near-term, and tracked in the open:
 
-- **Signed builds.** An Apple Developer ID with notarization, and a Windows code-signing
-  certificate, so the first-open confirmation goes away. The release workflow already signs when
-  the certificates are configured ([signing secrets](CONTRIBUTING.md#signing-secrets)); the certificates
-  are what is missing.
+- **Signed Windows builds.** macOS releases are Developer ID-signed and notarized; a Windows
+  code-signing certificate would remove the SmartScreen confirmation. The release workflow signs
+  both when the certificates are configured ([signing secrets](CONTRIBUTING.md#signing-secrets)).
 - **Updates in place.** The app already checks GitHub Releases for a newer version. Releases built
   by the release workflow attach the update manifests it reads; on macOS, installing an update in
   place also needs the signed build above.

@@ -6,10 +6,9 @@
 # Downloads the DMG for this Mac from the latest GitHub release, checks it
 # against that release's SHA256SUMS.txt, copies ClawMuse.app into
 # /Applications (or ~/Applications when /Applications is not writable) and
-# opens it. A file fetched by curl carries no quarantine flag, so Gatekeeper
-# does not stop the ad-hoc signed app the way it stops a browser download.
-# ponytail: once releases are Developer ID signed + notarized this script is
-# only a convenience; the browser download will open on its own.
+# opens it. Mac releases are Developer ID signed + notarized, so the browser
+# download opens on its own; this script is a convenience (and still installs
+# an ad-hoc signed local build, since curl sets no quarantine flag).
 #
 # Everything runs inside main(), so a truncated download of this script
 # executes nothing.
